@@ -38,7 +38,7 @@ func runClient() {
 }
 
 func serveInbound(inbound net.Conn, ctrl *ctrl.ControlLink) {
-  log.Info("New inbound %s. ", util.ConnStr(inbound))
+  log.Infof("New inbound %s. ", util.ConnStr(inbound))
   port, err := ctrl.GetPort()
   if err != nil {
     log.Err("Failed to get available port, closing inbound "+util.ConnStr(inbound)+". ")
@@ -47,13 +47,13 @@ func serveInbound(inbound net.Conn, ctrl *ctrl.ControlLink) {
   }
   log.Debug(fmt.Sprintf("Got port %d for inbound %s. ", port, util.ConnStr(inbound)))
 
-  rconn, err := ray.Dial("tcp", Addr, []byte(Usr), []byte(Pwd))
+  rconn, err := ray.Dial("tcp", net.JoinHostPort(Host, strconv.Itoa(int(port))), []byte(Usr), []byte(Pwd))
   if err != nil {
     log.Err(fmt.Errorf("Establish data link to server %s failed, closing inbound %s. ", Addr, util.ConnStr(inbound)))
     util.CloseCloser(inbound)
     return
   }
-  log.Info("Established data link %s for inbound %s, relay starting. ", util.ConnStr(rconn), util.ConnStr(inbound))
+  log.Infof("Established data link %s for inbound %s, relay starting. ", util.ConnStr(rconn), util.ConnStr(inbound))
 
   err = util.Relay(inbound, rconn)
   log.Info(fmt.Errorf("Relay finished for inbound %s, result: %w", util.ConnStr(inbound), err))

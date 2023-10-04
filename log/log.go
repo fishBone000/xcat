@@ -15,7 +15,7 @@ var (
 )
 
 func prefix(severity string) string {
-  return fmt.Sprintf("[%s] %s", severity, time.Now().Format("15:03:01.002"))
+  return fmt.Sprintf("[%s] %s", severity, time.Now().Format("15:04:05.000"))
 }
 
 func Err(a ...any) {

@@ -6,7 +6,6 @@ import (
 	"io"
 	"net"
 	"strconv"
-	"sync"
 
 	"github.com/fishBone000/xcat/log"
 )
@@ -40,37 +39,6 @@ func (c *AddrConn) LocalAddr() net.Addr {
 
 func (c *AddrConn) RemoteAddr() net.Addr {
 	return c.raddr
-}
-
-func Relay(clientConn, hostConn net.Conn) error {
-	// Copied & pasted from midlayer.go
-	var chErr error
-	var hcErr error
-	wg := sync.WaitGroup{}
-	wg.Add(2)
-
-	go func() {
-		_, hcErr = io.Copy(clientConn, hostConn)
-		wg.Done()
-	}()
-	go func() {
-		_, chErr = io.Copy(hostConn, clientConn)
-		wg.Done()
-	}()
-	wg.Wait()
-
-	if chErr == nil {
-		chErr = io.EOF
-	}
-	if hcErr == nil {
-		hcErr = io.EOF
-	}
-
-	CloseCloser(clientConn)
-	CloseCloser(hostConn)
-
-	err := NewRelayErr(clientConn, hostConn, chErr, hcErr)
-	return err
 }
 
 func CloseCloser(c io.Closer) {

@@ -60,7 +60,6 @@ func (c *ControlLink) GetPort() (port uint16, err error) {
 		}
 
 		_, err = c.rconn.Write([]byte{0x00})
-		log.Err(fmt.Errorf("ctrl link %s: %w", c.addr, err))
 		if err != nil {
 			c.rconn = nil
 			log.Err(fmt.Errorf("ctrl link %s: Couldn't send port query: %w. ", c.addr, err))
@@ -110,6 +109,7 @@ func (c *ControlLink) connectNoLock() (err error) {
 		if err != nil {
 			continue
 		}
+    break
 	}
 
 	if err != nil {

@@ -2,7 +2,9 @@ package util
 
 import (
 	"fmt"
+	"io"
 	"net"
+	"sync"
 )
 
 type RelayError struct {
@@ -48,4 +50,35 @@ func RelayAddr2str(craddr, claddr, hladdr, hraddr net.Addr) string {
 
 func Relay2str(cConn net.Conn, hConn net.Conn) string {
 	return RelayAddr2str(cConn.RemoteAddr(), cConn.LocalAddr(), hConn.LocalAddr(), hConn.RemoteAddr())
+}
+
+func Relay(clientConn, hostConn net.Conn) error {
+	// Copied & pasted from midlayer.go
+	var chErr error
+	var hcErr error
+	wg := sync.WaitGroup{}
+	wg.Add(2)
+
+	go func() {
+		_, hcErr = io.Copy(clientConn, hostConn)
+		wg.Done()
+	}()
+	go func() {
+		_, chErr = io.Copy(hostConn, clientConn)
+		wg.Done()
+	}()
+	wg.Wait()
+
+	if chErr == nil {
+		chErr = io.EOF
+	}
+	if hcErr == nil {
+		hcErr = io.EOF
+	}
+
+	CloseCloser(clientConn)
+	CloseCloser(hostConn)
+
+	err := NewRelayErr(clientConn, hostConn, chErr, hcErr)
+	return err
 }

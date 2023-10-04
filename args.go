@@ -52,7 +52,7 @@ func checkFlags() {
 	}
 
 	if Port < 0x00 || Port > 0xFFFF {
-		fmt.Printf("Invalid port %d", Port)
+		fmt.Printf("Invalid port %d. \n", Port)
 		os.Exit(1)
 	}
   Addr = net.JoinHostPort(Host, strconv.Itoa(Port))
@@ -60,7 +60,7 @@ func checkFlags() {
   var err error
   LHost, _, err = net.SplitHostPort(LAddr)
   if err != nil {
-    fmt.Printf("Invalid listening address %s: %s", LAddr, err.Error())
+    fmt.Printf("Invalid listening address %s: %s. \n", LAddr, err.Error())
 		os.Exit(1)
   }
 }
