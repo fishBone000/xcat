@@ -3,7 +3,9 @@ package main
 import (
 	"flag"
 	"fmt"
+	"net"
 	"os"
+	"strconv"
 )
 
 const (
@@ -11,13 +13,19 @@ const (
 	ModeClient = "client"
 )
 
+// Cmd line arguments
 var (
-	Mode    string
-	Host    string
-	Port    int
-	Usr     string
-	Pwd     string
-	LAddr   string
+	Mode  string
+	Host  string
+	Port  int
+	Usr   string
+	Pwd   string
+	LAddr string
+)
+
+// Variables after parsing
+var (
+  Addr string // Combination of Host and Port
 )
 
 func specifyFlags() {
@@ -26,7 +34,7 @@ func specifyFlags() {
 	flag.IntVar(&Port, "p", 0, "port")
 	flag.StringVar(&Usr, "U", "", "username for authentication")
 	flag.StringVar(&Pwd, "P", "", "password for authentication")
-  flag.StringVar(&LAddr, "l", ":1080", "listening address in client mode")
+	flag.StringVar(&LAddr, "l", ":1080", "listening address")
 }
 
 func init() {
@@ -46,4 +54,5 @@ func checkFlags() {
 		fmt.Printf("invalid port %d", Port)
 		os.Exit(1)
 	}
+  Addr = net.JoinHostPort(Host, strconv.Itoa(Port))
 }

@@ -4,12 +4,9 @@ import (
 	"crypto/aes"
 	"crypto/rand"
 	"crypto/sha512"
-	"errors"
 	"io"
 	"reflect"
 )
-
-var ErrAuthFailed = errors.New("authentication failed")
 
 // Can be called simultaneously.
 func Negotiate(rw io.ReadWriter, usr []byte, pwd []byte) (*Ray, error) {
@@ -54,7 +51,7 @@ func Negotiate(rw io.ReadWriter, usr []byte, pwd []byte) (*Ray, error) {
 
 	copy(msg, mask)
 	wblock.Encrypt(msg, msg)
-  wblock.Encrypt(msg[aes.BlockSize:], msg[aes.BlockSize:])
+	wblock.Encrypt(msg[aes.BlockSize:], msg[aes.BlockSize:])
 
 	if _, err := rw.Write(msg); err != nil {
 		return nil, err
@@ -65,7 +62,7 @@ func Negotiate(rw io.ReadWriter, usr []byte, pwd []byte) (*Ray, error) {
 	}
 
 	rblock.Decrypt(msg, msg)
-  rblock.Decrypt(msg[aes.BlockSize:], msg[aes.BlockSize:])
+	rblock.Decrypt(msg[aes.BlockSize:], msg[aes.BlockSize:])
 	if !reflect.DeepEqual(msg, mask) {
 		return nil, ErrAuthFailed
 	}
