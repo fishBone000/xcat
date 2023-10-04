@@ -49,11 +49,11 @@ func serveInbound(inbound net.Conn, ctrl *ctrl.ControlLink) {
 
   rconn, err := ray.Dial("tcp", Addr, []byte(Usr), []byte(Pwd))
   if err != nil {
-    log.Err(fmt.Errorf("Dial Ray to server %s failed, closing inbound %s. ", Addr, util.ConnStr(inbound)))
+    log.Err(fmt.Errorf("Establish data link to server %s failed, closing inbound %s. ", Addr, util.ConnStr(inbound)))
     util.CloseCloser(inbound)
     return
   }
-  log.Info("Connected Ray %s for inbound %s, relay starting. ", util.ConnStr(rconn), util.ConnStr(inbound))
+  log.Info("Established data link %s for inbound %s, relay starting. ", util.ConnStr(rconn), util.ConnStr(inbound))
 
   err = util.Relay(inbound, rconn)
   log.Info(fmt.Errorf("Relay finished for inbound %s, result: %w", util.ConnStr(inbound), err))

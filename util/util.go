@@ -1,9 +1,11 @@
 package util
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"net"
+	"strconv"
 	"sync"
 
 	"github.com/fishBone000/xcat/log"
@@ -64,36 +66,55 @@ func Relay(clientConn, hostConn net.Conn) error {
 		hcErr = io.EOF
 	}
 
-	closeCloser(clientConn)
-	closeCloser(hostConn)
+	CloseCloser(clientConn)
+	CloseCloser(hostConn)
 
 	err := NewRelayErr(clientConn, hostConn, chErr, hcErr)
 	return err
 }
 
-func closeCloser(c io.Closer) {
+func CloseCloser(c io.Closer) {
 	switch c := c.(type) {
 	case net.Conn:
-		log.Info("close connection ", ConnStr(c))
+		log.Debug("close connection ", ConnStr(c))
 		err := c.Close()
 		if err != nil {
-      log.Err(fmt.Errorf("close connection %s: %w", ConnStr(c), err))
+			log.Warnf("close connection %s: %w", ConnStr(c), err)
 		}
 	case net.Listener:
 		log.Info("close listener ", c.Addr())
 		err := c.Close()
 		if err != nil {
-      log.Err(fmt.Errorf("close connection %s: %w", c.Addr(), err))
+			log.Warnf("close connection %s: %w", c.Addr(), err)
 		}
 	default:
 		log.Info(fmt.Sprintf("close %T", c))
 		err := c.Close()
 		if err != nil {
-      log.Err(fmt.Errorf("close %T: %w", c, err))
+			log.Warnf("close %T: %w", c, err)
 		}
 	}
 }
 
 func ConnStr(c net.Conn) string {
 	return fmt.Sprintf("%s<L-R>%s", c.LocalAddr(), c.RemoteAddr())
+}
+
+func ParsePortFromAddr(addr net.Addr) (uint16, error) {
+	if addr == nil {
+		return 0, errors.New("parse port: nil address")
+	}
+	_, portStr, err := net.SplitHostPort(addr.String())
+	if err != nil {
+		return 0, err
+	}
+	port, err := strconv.Atoi(portStr)
+	if err != nil {
+		return 0, fmt.Errorf("parse port %s: %w", portStr, err)
+	}
+	if port < 0x00 && port > 0xFFFF {
+		return 0, fmt.Errorf("invalid port range %d", port)
+	}
+
+	return uint16(port), nil
 }

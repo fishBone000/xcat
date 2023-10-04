@@ -21,6 +21,7 @@ var (
 	Usr   string
 	Pwd   string
 	LAddr string
+  LHost string
 )
 
 // Variables after parsing
@@ -51,8 +52,15 @@ func checkFlags() {
 	}
 
 	if Port < 0x00 || Port > 0xFFFF {
-		fmt.Printf("invalid port %d", Port)
+		fmt.Printf("Invalid port %d", Port)
 		os.Exit(1)
 	}
   Addr = net.JoinHostPort(Host, strconv.Itoa(Port))
+
+  var err error
+  LHost, _, err = net.SplitHostPort(LAddr)
+  if err != nil {
+    fmt.Printf("Invalid listening address %s: %s", LAddr, err.Error())
+		os.Exit(1)
+  }
 }

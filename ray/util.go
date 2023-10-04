@@ -3,8 +3,11 @@ package ray
 import (
 	"crypto/aes"
 	"crypto/sha512"
+	"fmt"
 	"io"
+	"net"
 	"reflect"
+	"strconv"
 )
 
 // Does not check if the contentSz is valid!
@@ -19,7 +22,7 @@ func calcNBlock(contentSz int) int {
 
 func validateSum(p []byte) (ok bool) {
 	sum := sha512.Sum512_256(p[:len(p)-sha512.Size256])
-  return reflect.DeepEqual(sum[:], p[len(p)-sha512.Size256:])
+	return reflect.DeepEqual(sum[:], p[len(p)-sha512.Size256:])
 }
 
 type chanPipe struct {
@@ -52,4 +55,29 @@ func ChanPipe() (io.ReadWriter, io.ReadWriter) {
 	ch1 := make(chan byte, 6*1024)
 	ch2 := make(chan byte, 6*1024)
 	return chanPipe{ch1, ch2}, chanPipe{ch2, ch1}
+}
+
+func ParsePortFromAddr(addr net.Addr) (uint16, error) {
+	_, portStr, err := net.SplitHostPort(addr.String())
+	if err != nil {
+		return 0, fmt.Errorf(
+			"FATAL! Failed to get port from listener address %s: %s",
+			addr.String(), err,
+		)
+	}
+	port, err := strconv.Atoi(portStr)
+	if err != nil {
+		return 0, fmt.Errorf(
+			"FATAL! Failed to parse port %s: %s",
+			portStr, err,
+		)
+	}
+	if port < 0x00 && port > 0xFFFF {
+		return 0, fmt.Errorf(
+			"FATAL! invalid port range %d",
+			port,
+		)
+	}
+
+  return uint16(port), nil
 }
