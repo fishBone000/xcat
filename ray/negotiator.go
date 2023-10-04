@@ -4,21 +4,17 @@ import (
 	"crypto/aes"
 	"crypto/rand"
 	"crypto/sha512"
+	"errors"
 	"io"
 	"reflect"
-
-	"socksyx"
 )
 
-type RayNegotiator struct {
-	Usr []byte // Do not modify when running
-	Pwd []byte // Do not modify when running
-}
+var ErrAuthFailed = errors.New("authentication failed")
 
 // Can be called simultaneously.
-func (n *RayNegotiator) Negotiate(rw io.ReadWriter) (socksyx.Capsulator, error) {
-	usum := sha512.Sum512_256(n.Usr)
-	psum := sha512.Sum512_256(n.Pwd)
+func Negotiate(rw io.ReadWriter, usr []byte, pwd []byte) (*Ray, error) {
+	usum := sha512.Sum512_256(usr)
+	psum := sha512.Sum512_256(pwd)
 	mask := make([]byte, 32)
 	copy(mask, usum[:16])
 	copy(mask[16:], psum[:16])
@@ -71,7 +67,7 @@ func (n *RayNegotiator) Negotiate(rw io.ReadWriter) (socksyx.Capsulator, error) 
 	rblock.Decrypt(msg, msg)
   rblock.Decrypt(msg[aes.BlockSize:], msg[aes.BlockSize:])
 	if !reflect.DeepEqual(msg, mask) {
-		return nil, socksyx.ErrAuthFailed
+		return nil, ErrAuthFailed
 	}
 
 	return &Ray{
@@ -79,8 +75,4 @@ func (n *RayNegotiator) Negotiate(rw io.ReadWriter) (socksyx.Capsulator, error) 
 		wblock: wblock,
 		rw:     rw,
 	}, nil
-}
-
-func (n *RayNegotiator) Type() string {
-	return "ray"
 }

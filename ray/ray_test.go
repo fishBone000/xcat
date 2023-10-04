@@ -7,8 +7,6 @@ import (
 	"reflect"
 	"sync"
 	"testing"
-
-	"socksyx"
 )
 
 func FuzzRayCap(f *testing.F) {
@@ -53,30 +51,21 @@ func FuzzRayRW(f *testing.F) {
   f.Add([]byte{0x00, 0x88}, []byte{0x88, 0x00}, []byte{0x00, 0x00, 0x00})
 
   f.Fuzz(func(t *testing.T, usr []byte, pwd []byte, data []byte) {
-    negA := RayNegotiator{
-      Usr: usr,
-      Pwd: pwd,
-    }
-    negB := RayNegotiator{
-      Usr: usr,
-      Pwd: pwd,
-    }
-
     t.Log("begin subnegotiation")
 
     rwA, rwB := ChanPipe()
 
-    var capperA, capperB socksyx.Capsulator
+    var capperA, capperB *Ray
     var errA, errB error
     wg := sync.WaitGroup{}
 
     wg.Add(2)
     go func() {
-      capperA, errA = negA.Negotiate(rwA)
+      capperA, errA = Negotiate(rwA, usr, pwd)
       wg.Done()
     }()
     go func() {
-      capperB, errB = negB.Negotiate(rwB)
+      capperB, errB = Negotiate(rwB, usr, pwd)
       wg.Done()
     }()
     wg.Wait()
