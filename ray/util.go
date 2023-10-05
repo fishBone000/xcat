@@ -3,11 +3,8 @@ package ray
 import (
 	"crypto/aes"
 	"crypto/sha512"
-	"fmt"
 	"io"
-	"net"
 	"reflect"
-	"strconv"
 )
 
 // Does not check if the contentSz is valid!

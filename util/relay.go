@@ -29,7 +29,7 @@ func NewRelayErr(clientConn, hostConn net.Conn, chErr, hcErr error) *RelayError 
 
 func (e *RelayError) Error() string {
 	return fmt.Sprintf(
-		"%s, client to host: %s, host to client: %s",
+    "%s: \nClient to host: %s\nHost to client: %s",
 		RelayAddr2str(e.ClientRemoteAddr, e.ClientLocalAddr, e.HostLocalAddr, e.HostRemoteAddr),
 		e.Client2HostErr, e.Host2ClientErr,
 	)

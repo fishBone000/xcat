@@ -27,7 +27,7 @@ func format(severity, s string) string {
     if i == 0 {
       p := prefix(severity)
       indent = strings.Repeat(" ", len(p))
-      res += fmt.Sprintf(p, " ", line, '\n')
+      res += fmt.Sprint(p, " ", line, '\n')
       continue
     }
     res += fmt.Sprint(indent, " ", line, '\n')
