@@ -2,6 +2,7 @@ package log
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/fatih/color"
@@ -18,34 +19,50 @@ func prefix(severity string) string {
   return fmt.Sprintf("[%s] %s", severity, time.Now().Format("15:04:05.000"))
 }
 
-func Err(a ...any) {
-	errColor.Println(prefix("ERROR"), fmt.Sprint(a...))
+func format(severity, s string) string {
+  res := ""
+  lines := strings.FieldsFunc(s, func(r rune) bool {return r == '\n'})
+  indent := ""
+  for i, line := range lines {
+    if i == 0 {
+      p := prefix(severity)
+      indent = strings.Repeat(" ", len(p))
+      res += fmt.Sprintf(p, " ", line, '\n')
+      continue
+    }
+    res += fmt.Sprint(indent, " ", line, '\n')
+  }
+  return res
 }
 
-func Errf(format string, a ...any) {
-  errColor.Println(prefix("ERROR"), fmt.Errorf(format, a...))
+func Err(a ...any) {
+	errColor.Println(format("ERROR", fmt.Sprint(a...)))
+}
+
+func Errf(f string, a ...any) {
+  errColor.Println(format("ERROR", fmt.Errorf(f, a...).Error()))
 }
 
 func Warn(a ...any) {
-	warnColor.Println(prefix("WARN"), fmt.Sprint(a...))
+	warnColor.Println(format("WARN", fmt.Sprint(a...)))
 }
 
-func Warnf(format string, a ...any) {
-  warnColor.Println(prefix("WARN"), fmt.Errorf(format, a...))
+func Warnf(f string, a ...any) {
+  warnColor.Println(format("WARN", fmt.Errorf(f, a...).Error()))
 }
 
 func Info(a ...any) {
 	infoColor.Println(prefix("INFO"), fmt.Sprint(a...))
 }
 
-func Infof(format string, a ...any) {
-  infoColor.Println(prefix("INFO"), fmt.Errorf(format, a...))
+func Infof(f string, a ...any) {
+  infoColor.Println(format("INFO", fmt.Errorf(f, a...).Error()))
 }
 
 func Debug(a ...any) {
-	dbgColor.Println(prefix("DEBUG"), fmt.Sprint(a...))
+	dbgColor.Println(format("DEBUG", fmt.Sprint(a...)))
 }
 
-func Debugf(format string, a ...any) {
-  dbgColor.Println(prefix("DEBUG"), fmt.Errorf(format, a...))
+func Debugf(f string, a ...any) {
+  dbgColor.Println(format("DEBUG", fmt.Errorf(f, a...).Error()))
 }
