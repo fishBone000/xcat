@@ -37,7 +37,7 @@ func serveControlLink(conn net.Conn) {
 
 	rconn, err := ray.FromConn(conn, []byte(Usr), []byte(Pwd))
 	if err != nil {
-		log.Warnf("Ray negotiation on control link %s failed: %w", util.ConnStr(rconn), err)
+		log.Warnf("Ray negotiation on control link %s failed: %w", util.ConnStr(conn), err)
 		util.CloseCloser(conn)
 		return
 	}
