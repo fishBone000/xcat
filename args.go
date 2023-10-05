@@ -48,6 +48,7 @@ func init() {
 
 func checkFlags() {
 	if Mode != ModeServer && Mode != ModeClient {
+    fmt.Printf("Unknown mode %s", Mode)
 		os.Exit(1)
 	}
 
