@@ -27,42 +27,42 @@ func format(severity, s string) string {
     if i == 0 {
       p := prefix(severity)
       indent = strings.Repeat(" ", len(p))
-      res += fmt.Sprint(p, " ", line, '\n')
+      res += fmt.Sprint(p, " ", line, "\n")
       continue
     }
-    res += fmt.Sprint(indent, " ", line, '\n')
+    res += fmt.Sprint(indent, " ", line, "\n")
   }
   return res
 }
 
 func Err(a ...any) {
-	errColor.Println(format("ERROR", fmt.Sprint(a...)))
+	errColor.Print(format("ERROR", fmt.Sprint(a...)))
 }
 
 func Errf(f string, a ...any) {
-  errColor.Println(format("ERROR", fmt.Errorf(f, a...).Error()))
+  errColor.Print(format("ERROR", fmt.Errorf(f, a...).Error()))
 }
 
 func Warn(a ...any) {
-	warnColor.Println(format("WARN", fmt.Sprint(a...)))
+	warnColor.Print(format("WARN", fmt.Sprint(a...)))
 }
 
 func Warnf(f string, a ...any) {
-  warnColor.Println(format("WARN", fmt.Errorf(f, a...).Error()))
+  warnColor.Print(format("WARN", fmt.Errorf(f, a...).Error()))
 }
 
 func Info(a ...any) {
-	infoColor.Println(prefix("INFO"), fmt.Sprint(a...))
+	infoColor.Print(format("INFO", fmt.Sprint(a...)))
 }
 
 func Infof(f string, a ...any) {
-  infoColor.Println(format("INFO", fmt.Errorf(f, a...).Error()))
+  infoColor.Print(format("INFO", fmt.Errorf(f, a...).Error()))
 }
 
 func Debug(a ...any) {
-	dbgColor.Println(format("DEBUG", fmt.Sprint(a...)))
+	dbgColor.Print(format("DEBUG", fmt.Sprint(a...)))
 }
 
 func Debugf(f string, a ...any) {
-  dbgColor.Println(format("DEBUG", fmt.Errorf(f, a...).Error()))
+  dbgColor.Print(format("DEBUG", fmt.Errorf(f, a...).Error()))
 }

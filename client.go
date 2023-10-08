@@ -30,7 +30,7 @@ func runClient() {
   for {
     inbound, err := l.Accept()
     if err != nil {
-      log.Err(fmt.Errorf("Accept inbound failed, exitting. \n%w", 1, err))
+      log.Err(fmt.Errorf("Accept inbound failed, exitting. \nReason: %w", err))
       os.Exit(1)
     }
     go serveInbound(inbound, ctrl)
@@ -56,5 +56,5 @@ func serveInbound(inbound net.Conn, ctrl *ctrl.ControlLink) {
   log.Infof("Established data link %s for inbound %s, relay starting. ", util.ConnStr(rconn), util.ConnStr(inbound))
 
   err = util.Relay(inbound, rconn)
-  log.Info(fmt.Errorf("Relay finished for inbound %s, result: %w", util.ConnStr(inbound), err))
+  log.Info(fmt.Errorf("Relay finished for inbound %s, result: \n%w", util.ConnStr(inbound), err))
 }
