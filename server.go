@@ -2,10 +2,12 @@ package main
 
 import (
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"net"
 	"os"
 	"strconv"
+	"time"
 
 	"github.com/fishBone000/xcat/log"
 	"github.com/fishBone000/xcat/ray"
@@ -55,7 +57,7 @@ func serveControlLink(conn net.Conn) {
 		}
 
 		for i := 0; i < n; i++ {
-			l, err := net.Listen("tcp", net.JoinHostPort(LHost, "0"))
+			l, err := util.ListenMultiple("tcp", net.JoinHostPort(LHost, "0"))
 			if err != nil {
 				log.Errf("Listen data link failed: %w. ", err)
 				util.CloseCloser(rconn)
@@ -81,7 +83,7 @@ func serveControlLink(conn net.Conn) {
 	}
 }
 
-func serveDataLink(l net.Listener) {
+func serveDataLink(l *util.MultiListener) {
 	dialed := make(chan struct{})
 	var outbound net.Conn
 	var dialErr error
@@ -90,30 +92,40 @@ func serveDataLink(l net.Listener) {
 		close(dialed)
 	}()
 
+	if DataLinkListenTimeout > 0 {
+    err := l.SetDeadline(time.Now().Add(time.Second * time.Duration(DataLinkListenTimeout)))
+    if err != nil {
+      log.Warnf("Failed to set deadline for listener %s: %w. ", l.Addr(), err)
+    }
+	}
 	c, err := l.Accept()
 	if err != nil {
-		log.Errf("Failed to accept data link on %s: %w", l.Addr(), err)
-    util.CloseCloser(l)
+		if errors.Is(err, os.ErrDeadlineExceeded) {
+			log.Warnf("Timed out listening for data link at %s. ", l.Addr(),)
+		} else {
+			log.Errf("Failed to accept data link on %s: %w", l.Addr(), err)
+		}
+		util.CloseCloser(l)
 		return
 	}
-  util.CloseCloser(l)
+	util.CloseCloser(l)
 
 	rconn, err := ray.FromConn(c, []byte(Usr), []byte(Pwd))
 	if err != nil {
 		log.Errf("Ray negotiation on data link %s failed: %w", l.Addr(), err)
 		return
 	}
-  defer util.CloseCloser(rconn)
+	defer util.CloseCloser(rconn)
 
-  select {
-  case <-dialed:
-  }
+	select {
+	case <-dialed:
+	}
 
-  if dialErr != nil {
-    log.Errf("Error dial outbound for control link %s: %w", util.ConnStr(rconn), dialErr)
-    return
-  }
+	if dialErr != nil {
+		log.Errf("Error dial outbound for control link %s: %w", util.ConnStr(rconn), dialErr)
+		return
+	}
 
-  err = util.Relay(rconn, outbound)
-  log.Infof("Relay finished, detail: \n%w", err)
+	err = util.Relay(rconn, outbound)
+	log.Infof("Relay finished, detail: \n%w", err)
 }

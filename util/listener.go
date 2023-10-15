@@ -5,11 +5,12 @@ import (
 	"net"
 	"runtime"
 	"sync"
+	"time"
 )
 
 type MultiListener struct {
 	connChan chan net.Conn
-	ls       []net.Listener
+	ls       []*net.TCPListener
 	errs     []error
 	closed   chan struct{}
 	mux      sync.Mutex
@@ -26,7 +27,7 @@ func ListenMultiple(network, addr string) (*MultiListener, error) {
 
 	var ips []net.IP
 	var port string
-  var host string
+	var host string
 	if addr == "" {
 		if runtime.GOOS == "dragonfly" || runtime.GOOS == "openbsd" {
 			ips = []net.IP{net.IPv4zero, net.IPv6zero}
@@ -47,12 +48,13 @@ func ListenMultiple(network, addr string) (*MultiListener, error) {
 		}
 	}
 
-	ls := make([]net.Listener, 0, len(ips))
+	ls := make([]*net.TCPListener, 0, len(ips))
 
 	var err error
 	for _, ip := range ips {
-		var l net.Listener
-		l, err = net.Listen(network, net.JoinHostPort(ip.String(), port))
+		var l *net.TCPListener
+		laddr, _ := net.ResolveTCPAddr(network, net.JoinHostPort(ip.String(), port))
+		l, err = net.ListenTCP(network, laddr)
 		if err != nil {
 			break
 		}
@@ -75,7 +77,7 @@ func ListenMultiple(network, addr string) (*MultiListener, error) {
 		ls:       ls,
 		errs:     make([]error, len(ls)),
 		closed:   make(chan struct{}),
-    addr: NewStrAddr(network, net.JoinHostPort(host, port)),
+		addr:     NewStrAddr(network, net.JoinHostPort(host, port)),
 	}
 	for i, l := range ls {
 		go func(i int, l net.Listener) {
@@ -122,5 +124,15 @@ func (ml *MultiListener) Close() error {
 }
 
 func (ml *MultiListener) Addr() net.Addr {
-  return ml.addr
+	return ml.addr
+}
+
+func (ml *MultiListener) SetDeadline(t time.Time) (err error) {
+	for _, l := range ml.ls {
+    err = l.SetDeadline(t)
+    if err != nil {
+      return
+    }
+	}
+  return
 }

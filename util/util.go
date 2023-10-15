@@ -50,10 +50,16 @@ func CloseCloser(c io.Closer) {
 			log.Warnf("close connection %s: %w", ConnStr(c), err)
 		}
 	case net.Listener:
-		log.Info("close listener ", c.Addr())
+		log.Debug("close listener ", c.Addr())
 		err := c.Close()
 		if err != nil {
 			log.Warnf("close connection %s: %w", c.Addr(), err)
+		}
+  case *MultiListener:
+    log.Debug("close listener ", c.Addr())
+		err := c.Close()
+		if err != nil {
+			log.Warnf("close listener %s: \n%w", c.Addr(), err)
 		}
 	default:
 		log.Info(fmt.Sprintf("close %T", c))

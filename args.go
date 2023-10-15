@@ -15,18 +15,20 @@ const (
 
 // Cmd line arguments
 var (
-	Mode  string
-	Host  string
-	Port  int
-	Usr   string
-	Pwd   string
-	LAddr string
-  LHost string
+	Mode                  string
+	Host                  string
+	Port                  int
+	Usr                   string
+	Pwd                   string
+	LAddr                 string
+	LHost                 string
+	DataLinkListenTimeout uint
+	CtrlLinkTimeout       uint
 )
 
 // Variables after parsing
 var (
-  Addr string // Combination of Host and Port
+	Addr string // Combination of Host and Port
 )
 
 func specifyFlags() {
@@ -36,6 +38,8 @@ func specifyFlags() {
 	flag.StringVar(&Usr, "U", "", "username for authentication")
 	flag.StringVar(&Pwd, "P", "", "password for authentication")
 	flag.StringVar(&LAddr, "l", ":1080", "listening address")
+	flag.UintVar(&DataLinkListenTimeout, "t", 15, "timeout (sec) for listening incoming data link, effective on server side only")
+	flag.UintVar(&CtrlLinkTimeout, "T", 5, "timeout (sec) for establishing control link an dport query, effective on client side only")
 }
 
 func init() {
@@ -48,7 +52,7 @@ func init() {
 
 func checkFlags() {
 	if Mode != ModeServer && Mode != ModeClient {
-    fmt.Printf("Unknown mode %s", Mode)
+		fmt.Printf("Unknown mode %s", Mode)
 		os.Exit(1)
 	}
 
@@ -56,12 +60,12 @@ func checkFlags() {
 		fmt.Printf("Invalid port %d. \n", Port)
 		os.Exit(1)
 	}
-  Addr = net.JoinHostPort(Host, strconv.Itoa(Port))
+	Addr = net.JoinHostPort(Host, strconv.Itoa(Port))
 
-  var err error
-  LHost, _, err = net.SplitHostPort(LAddr)
-  if err != nil {
-    fmt.Printf("Invalid listening address %s: %s. \n", LAddr, err.Error())
+	var err error
+	LHost, _, err = net.SplitHostPort(LAddr)
+	if err != nil {
+		fmt.Printf("Invalid listening address %s: %s. \n", LAddr, err.Error())
 		os.Exit(1)
-  }
+	}
 }

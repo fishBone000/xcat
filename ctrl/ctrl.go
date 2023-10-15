@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"sync"
+	"time"
 
 	"github.com/fishBone000/xcat/log"
 	"github.com/fishBone000/xcat/ray"
@@ -20,16 +21,18 @@ type ControlLink struct {
 	addr string
 	usr  []byte
 	pwd  []byte
+  timeout time.Duration
 
 	rconn *ray.RayConn
 	mux   sync.Mutex
 }
 
-func NewCtrlLink(addr string, usr, pwd []byte) (*ControlLink, error) {
+func NewCtrlLink(addr string, usr, pwd []byte, timeout time.Duration) (*ControlLink, error) {
 	ctrl := &ControlLink{
 		addr: addr,
 		usr:  usr,
 		pwd:  pwd,
+    timeout: timeout,
 	}
 
 	err := ctrl.connect()
@@ -58,6 +61,11 @@ func (c *ControlLink) GetPort() (port uint16, err error) {
 			log.Err("ctrl link: Aborted due to connection failure. ")
 			return
 		}
+
+    err = c.rconn.SetDeadline(time.Now().Add(c.timeout))
+    if err != nil {
+      log.Warnf("ctrl link: Failed to set deadline: %w. ", err)
+    }
 
 		_, err = c.rconn.Write([]byte{0x00})
 		if err != nil {
@@ -105,7 +113,7 @@ func (c *ControlLink) connectNoLock() (err error) {
 			))
 		}
 
-		c.rconn, err = ray.Dial("tcp", c.addr, c.usr, c.pwd)
+		c.rconn, err = ray.DialTimeout("tcp", c.addr, c.usr, c.pwd, c.timeout)
 		if err != nil {
 			continue
 		}
