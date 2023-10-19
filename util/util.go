@@ -6,6 +6,7 @@ import (
 	"io"
 	"net"
 	"strconv"
+	"sync"
 
 	"github.com/fishBone000/xcat/log"
 )
@@ -91,4 +92,31 @@ func ParsePortFromAddr(addr net.Addr) (uint16, error) {
 	}
 
 	return uint16(port), nil
+}
+
+type FlagOnce struct {
+  ch chan struct{}
+  set bool
+  mux sync.Mutex
+}
+
+func NewFlagOnce() *FlagOnce {
+  return &FlagOnce{
+    ch: make(chan struct{}),
+  }
+}
+
+func (f *FlagOnce) Set() bool {
+  f.mux.Lock()
+  defer f.mux.Unlock()
+  if f.set {
+    return false
+  }
+  close(f.ch)
+  f.set = true
+  return true
+}
+
+func (f *FlagOnce) Chan() <-chan struct{} {
+  return f.ch
 }

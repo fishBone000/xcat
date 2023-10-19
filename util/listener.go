@@ -12,7 +12,7 @@ type MultiListener struct {
 	connChan chan net.Conn
 	ls       []*net.TCPListener
 	errs     []error
-	closed   chan struct{}
+	closed   *FlagOnce
 	mux      sync.Mutex
 	addr     net.Addr
 }
@@ -76,7 +76,7 @@ func ListenMultiple(network, addr string) (*MultiListener, error) {
 		connChan: make(chan net.Conn),
 		ls:       ls,
 		errs:     make([]error, len(ls)),
-		closed:   make(chan struct{}),
+		closed:   NewFlagOnce(),
 		addr:     NewStrAddr(network, net.JoinHostPort(host, port)),
 	}
 	for i, l := range ls {
@@ -87,7 +87,7 @@ func ListenMultiple(network, addr string) (*MultiListener, error) {
 					ml.mux.Lock()
 					defer ml.mux.Unlock()
 					ml.errs[i] = err
-					close(ml.closed)
+          ml.closed.Set()
 					return
 				}
 
@@ -103,7 +103,7 @@ func (ml *MultiListener) Accept() (net.Conn, error) {
 	select {
 	case c := <-ml.connChan:
 		return c, nil
-	case <-ml.closed:
+	case <-ml.closed.Chan():
 		ml.mux.Lock()
 		defer ml.mux.Unlock()
 
