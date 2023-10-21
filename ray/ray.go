@@ -23,7 +23,8 @@ package ray
 // BLK is an AES block, having size of 16 bytes.
 // SUM is the sha512/256 checksum of the plaintext form of SZ and CONTENT.
 //
-// CONTENT is zero padded at the tail to fit to the AES block size.
+// CONTENT is padded at the tail to fit to the AES block size. 
+// How to pad is not defined. 
 
 import (
 	"crypto/aes"

@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"os"
 	"strconv"
@@ -17,7 +18,7 @@ import (
 func runServer() {
 	log.Info("Server startup! ")
 
-	l, err := util.ListenMultiple("tcp", LAddr)
+	l, err := util.ListenMultipleTCP("tcp", LAddr)
 	if err != nil {
 		log.Errf("Failed to listen control link, exitting: %w", err)
 		os.Exit(1)
@@ -57,7 +58,7 @@ func serveControlLink(conn net.Conn) {
 		}
 
 		for i := 0; i < n; i++ {
-			l, err := util.ListenMultiple("tcp", net.JoinHostPort(LHost, "0"))
+			l, err := util.ListenMultipleTCP("tcp", net.JoinHostPort(LHost, "0"))
 			if err != nil {
 				log.Errf("Listen data link failed: %w. ", err)
 				util.CloseCloser(rconn)
@@ -78,12 +79,16 @@ func serveControlLink(conn net.Conn) {
 			}
 
 			log.Infof("Port %d allocated on control link %s, start listening. ", port, util.ConnStr(rconn))
-			go serveDataLink(l)
+      if buf[n] == 0x00 {
+        go serveDataLinkTCP(l)
+      } else {
+        go serveDataLinkUDP(l)
+      }
 		}
 	}
 }
 
-func serveDataLink(l *util.MultiListener) {
+func serveDataLinkTCP(l *util.MultiListenerTCP) {
 	dialed := make(chan struct{})
 	var outbound net.Conn
 	var dialErr error
@@ -101,9 +106,9 @@ func serveDataLink(l *util.MultiListener) {
 	c, err := l.Accept()
 	if err != nil {
 		if errors.Is(err, os.ErrDeadlineExceeded) {
-			log.Warnf("Timed out listening for data link at %s. ", l.Addr(),)
+			log.Warnf("Timed out listening for TCP data link at %s. ", l.Addr(),)
 		} else {
-			log.Errf("Failed to accept data link on %s: %w", l.Addr(), err)
+			log.Errf("Failed to accept TCP data link on %s: %w", l.Addr(), err)
 		}
 		util.CloseCloser(l)
 		return
@@ -112,7 +117,7 @@ func serveDataLink(l *util.MultiListener) {
 
 	rconn, err := ray.FromConn(c, []byte(Usr), []byte(Pwd))
 	if err != nil {
-		log.Errf("Ray negotiation on data link %s failed: %w", l.Addr(), err)
+		log.Errf("Ray negotiation on TCP data link %s failed: %w", l.Addr(), err)
 		return
 	}
 	defer util.CloseCloser(rconn)
@@ -128,4 +133,98 @@ func serveDataLink(l *util.MultiListener) {
 
 	err = util.Relay(rconn, outbound)
 	log.Infof("Relay finished, detail: \n%w", err)
+}
+
+func serveDataLinkUDP(l *util.MultiListenerTCP) {
+	if DataLinkListenTimeout > 0 {
+    err := l.SetDeadline(time.Now().Add(time.Second * time.Duration(DataLinkListenTimeout)))
+    if err != nil {
+      log.Warnf("Failed to set deadline for listener %s: %w. ", l.Addr(), err)
+    }
+	}
+
+  tcpIn, err := l.Accept()
+  if err != nil {
+		if errors.Is(err, os.ErrDeadlineExceeded) {
+			log.Warnf("Timed out listening for data link at %s. ", l.Addr(),)
+		} else {
+			log.Errf("Failed to accept data link on %s: %w", l.Addr(), err)
+		}
+		util.CloseCloser(l)
+    return
+  }
+  util.CloseCloser(l)
+
+  udpOut, err := net.Dial("udp", net.JoinHostPort(Host, strconv.Itoa(int(Port))))
+  if err != nil {
+    log.Errf("Failed to dial UDP outbound for UDP data link %s: %w. ", util.ConnStr(tcpIn), err)
+    return
+  }
+
+  laddr, _ := net.ResolveUDPAddr("udp", tcpIn.LocalAddr().String())
+  raddr, _ := net.ResolveUDPAddr("udp", tcpIn.RemoteAddr().String())
+  udpIn, err := net.DialUDP("udp", laddr, raddr)
+  if err != nil {
+    log.Errf("Failed to dial UDP outbound for UDP data link %s: %w. ", util.ConnStr(tcpIn), err)
+    util.CloseCloser(tcpIn)
+    util.CloseCloser(udpOut)
+    return
+  }
+
+  r, err := ray.Negotiate(tcpIn, []byte(Usr), []byte(Pwd))
+  if err != nil {
+    log.Errf("Ray negotiation failed for UDP data link %s: %w. ", util.ConnStr(tcpIn), err)
+    util.CloseCloser(tcpIn)
+    util.CloseCloser(udpOut)
+    util.CloseCloser(udpIn)
+    return
+  }
+  ru := &ray.RayUDP{
+    TCP: tcpIn,
+    UDP: udpIn,
+    Ray: r,
+  }
+
+  fatal := util.Fatal{}
+  go func() {
+    buffer := make([]byte, 65535)
+    for {
+      n, err := ru.Read(buffer)
+      if n > 0 {
+        udpOut.Write(buffer[:n])
+      }
+      if err != nil {
+        fatal.Set(err)
+        return
+      }
+    }
+  }()
+  go func() {
+    buffer := make([]byte, 65535)
+    for {
+      n, err := udpOut.Read(buffer)
+      if n > 0 {
+        ru.Write(buffer[:n])
+      }
+      if err != nil {
+        fatal.Set(err)
+        return
+      }
+    }
+  }()
+
+  <-fatal.Chan()
+  if err := ru.ErrTCP(); err != nil {
+    if errors.Is(err, io.EOF) {
+      log.Infof("Relay UDP for inbound %s finished: EOF", util.ConnStr(ru))
+    } else {
+      log.Errf("Error relaying UDP for inbound %s: %w", util.ConnStr(ru), err)
+    }
+  } else {
+    log.Errf("Error relaying UDP for inbound %s: %w", util.ConnStr(ru), fatal.Get())
+  }
+  util.CloseCloser(tcpIn)
+  util.CloseCloser(udpIn)
+  util.CloseCloser(udpOut)
+  return
 }

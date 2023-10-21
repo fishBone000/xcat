@@ -42,7 +42,15 @@ func NewCtrlLink(addr string, usr, pwd []byte, timeout time.Duration) (*ControlL
 	return ctrl, nil
 }
 
-func (c *ControlLink) GetPort() (port uint16, err error) {
+func (c *ControlLink) GetPortTCP() (port uint16, err error) {
+  return c.getPort(0x00)
+}
+
+func (c *ControlLink) GetPortUDP() (port uint16, err error) {
+  return c.getPort(0x01)
+}
+
+func (c *ControlLink) getPort(msg byte) (port uint16, err error) {
 	c.mux.Lock()
 	defer c.mux.Unlock()
 
@@ -67,7 +75,7 @@ func (c *ControlLink) GetPort() (port uint16, err error) {
       log.Warnf("ctrl link: Failed to set deadline: %w. ", err)
     }
 
-		_, err = c.rconn.Write([]byte{0x00})
+		_, err = c.rconn.Write([]byte{msg})
 		if err != nil {
 			c.rconn = nil
 			log.Err(fmt.Errorf("ctrl link: Couldn't send port query: %w. ", err))

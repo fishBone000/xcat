@@ -8,7 +8,7 @@ import (
 	"time"
 )
 
-type MultiListener struct {
+type MultiListenerTCP struct {
 	connChan chan net.Conn
 	ls       []*net.TCPListener
 	errs     []error
@@ -17,7 +17,7 @@ type MultiListener struct {
 	addr     net.Addr
 }
 
-func ListenMultiple(network, addr string) (*MultiListener, error) {
+func ListenMultipleTCP(network, addr string) (*MultiListenerTCP, error) {
 	switch network {
 	case "tcp", "tcp4", "tcp6":
 		break
@@ -72,11 +72,10 @@ func ListenMultiple(network, addr string) (*MultiListener, error) {
 		return nil, err
 	}
 
-	ml := &MultiListener{
+	ml := &MultiListenerTCP{
 		connChan: make(chan net.Conn),
 		ls:       ls,
 		errs:     make([]error, len(ls)),
-		closed:   NewFlagOnce(),
 		addr:     NewStrAddr(network, net.JoinHostPort(host, port)),
 	}
 	for i, l := range ls {
@@ -87,7 +86,7 @@ func ListenMultiple(network, addr string) (*MultiListener, error) {
 					ml.mux.Lock()
 					defer ml.mux.Unlock()
 					ml.errs[i] = err
-          ml.closed.Set()
+					ml.closed.Set()
 					return
 				}
 
@@ -99,7 +98,7 @@ func ListenMultiple(network, addr string) (*MultiListener, error) {
 	return ml, nil
 }
 
-func (ml *MultiListener) Accept() (net.Conn, error) {
+func (ml *MultiListenerTCP) Accept() (net.Conn, error) {
 	select {
 	case c := <-ml.connChan:
 		return c, nil
@@ -111,7 +110,7 @@ func (ml *MultiListener) Accept() (net.Conn, error) {
 	}
 }
 
-func (ml *MultiListener) Close() error {
+func (ml *MultiListenerTCP) Close() error {
 	errs := make([]error, 0, 4)
 	ml.mux.Lock()
 	defer ml.mux.Unlock()
@@ -123,16 +122,226 @@ func (ml *MultiListener) Close() error {
 	return errors.Join(errs...)
 }
 
-func (ml *MultiListener) Addr() net.Addr {
+func (ml *MultiListenerTCP) Addr() net.Addr {
 	return ml.addr
 }
 
-func (ml *MultiListener) SetDeadline(t time.Time) (err error) {
+func (ml *MultiListenerTCP) SetDeadline(t time.Time) (err error) {
 	for _, l := range ml.ls {
-    err = l.SetDeadline(t)
-    if err != nil {
-      return
-    }
+		err = l.SetDeadline(t)
+		if err != nil {
+			return
+		}
 	}
-  return
+	return
+}
+
+type MultiListenerUDP struct {
+	mux sync.Mutex
+
+	netConnsByAddr    map[string]*net.UDPConn
+	connsTableByLAddr map[string]map[string]*UDPConn // Local Address -> Remote Address -> UDPCOnn
+	acceptQueue       chan *UDPConn
+	addr              *StrAddr
+
+	fatal Fatal
+}
+
+func ListenMultipleUDP(network, addr string) (*MultiListenerUDP, error) {
+	switch network {
+	case "udp":
+	case "udp4":
+	case "udp6":
+	default:
+		return nil, net.UnknownNetworkError(network)
+	}
+
+	var host, port string
+	var ips []net.IP
+	if addr == "" {
+		if runtime.GOOS == "dragonfly" || runtime.GOOS == "openbsd" {
+			ips = []net.IP{net.IPv4zero, net.IPv6zero}
+		} else {
+			ips = []net.IP{net.IPv4zero}
+		}
+		port = "0"
+	} else {
+		var err error
+		host, port, err = net.SplitHostPort(addr)
+		if err != nil {
+			return nil, err
+		}
+
+		ips, err = net.LookupIP(host)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	d := &MultiListenerUDP{
+		netConnsByAddr:    make(map[string]*net.UDPConn),
+		connsTableByLAddr: make(map[string]map[string]*UDPConn),
+		acceptQueue:       make(chan *UDPConn),
+		addr:              NewStrAddr(network, net.JoinHostPort(host, port)),
+	}
+
+	var err error
+	for _, ip := range ips {
+		var laddr *net.UDPAddr
+		laddr, err = net.ResolveUDPAddr(network, net.JoinHostPort(ip.String(), port))
+		if err != nil {
+			break
+		}
+		var conn *net.UDPConn
+		conn, err = net.ListenUDP(network, laddr)
+		if err != nil {
+			break
+		}
+		if port == "0" {
+			_, port, _ = net.SplitHostPort(conn.LocalAddr().String())
+		}
+		d.netConnsByAddr[conn.LocalAddr().String()] = conn
+	}
+
+	if err != nil {
+		for _, conn := range d.netConnsByAddr {
+			conn.Close()
+		}
+		return nil, err
+	}
+
+	for addr := range d.netConnsByAddr {
+		d.connsTableByLAddr[addr] = make(map[string]*UDPConn)
+	}
+
+	go d.run()
+	return d, nil
+}
+
+func (l *MultiListenerUDP) Accept() (*UDPConn, error) {
+	select {
+	case conn := <-l.acceptQueue:
+		return conn, nil
+	case <-l.fatal.ch:
+		return nil, l.fatal.Get()
+	}
+}
+
+func (l *MultiListenerUDP) Addr() net.Addr {
+	return l.addr
+}
+
+func (l *MultiListenerUDP) pushAcceptQueueNoLock(c *UDPConn) {
+	select {
+	case l.acceptQueue <- c:
+	default:
+		discard := <-l.acceptQueue
+		delete(l.connsTableByLAddr[discard.laddr.String()], discard.RemoteAddr().String())
+		l.acceptQueue <- c
+	}
+}
+
+func (l *MultiListenerUDP) run() {
+	for _, netConn := range l.netConnsByAddr {
+		go func(netConn *net.UDPConn) {
+			buffer := make([]byte, 65536)
+			laddr := netConn.LocalAddr().String()
+			for {
+				n, addr, err := netConn.ReadFromUDP(buffer)
+
+				l.mux.Lock()
+				conn := l.connsTableByLAddr[laddr][addr.String()]
+				if conn == nil {
+					conn = &UDPConn{
+						l:      l,
+						inner:  netConn,
+						laddr:  netConn.LocalAddr(),
+						raddr:  addr,
+						buffer: make(chan []byte, 32),
+					}
+					l.connsTableByLAddr[laddr][addr.String()] = conn
+					l.pushAcceptQueueNoLock(conn)
+				}
+				l.mux.Unlock()
+
+				p := make([]byte, n)
+				copy(p, buffer[:n])
+				conn.pushBuffer(buffer[:n])
+
+				if err != nil {
+					l.fatal.Set(err)
+					conn.fatal.Set(err)
+					return
+				}
+			}
+		}(netConn)
+	}
+}
+
+type UDPConn struct {
+	l      *MultiListenerUDP
+	inner  *net.UDPConn
+	laddr  net.Addr
+	raddr  net.Addr
+	buffer chan []byte
+	fatal  Fatal
+	mux    sync.Mutex
+}
+
+func (c *UDPConn) Write(b []byte) (int, error) {
+	if c.fatal.Get() != nil {
+		return 0, net.ErrClosed
+	}
+	n, err := c.inner.WriteTo(b, c.raddr)
+	if err != nil {
+		c.fatal.Set(err)
+	}
+	return n, err
+}
+
+func (c *UDPConn) Read() ([]byte, error) {
+	if c.fatal.Get() != nil {
+		return nil, net.ErrClosed
+	}
+	select {
+	case b := <-c.buffer:
+		return b, nil
+	case <-c.fatal.Chan():
+		return nil, net.ErrClosed
+	}
+}
+
+func (c *UDPConn) LocalAddr() net.Addr {
+	return c.laddr
+}
+
+func (c *UDPConn) RemoteAddr() net.Addr {
+	return c.raddr
+}
+
+func (c *UDPConn) Close() error {
+	ok := c.fatal.Set(net.ErrClosed)
+	c.l.mux.Lock()
+	defer c.l.mux.Unlock()
+	if c.l.connsTableByLAddr[c.LocalAddr().String()][c.RemoteAddr().String()] == c {
+		delete(c.l.connsTableByLAddr[c.LocalAddr().String()], c.RemoteAddr().String())
+	}
+	if !ok {
+		return net.ErrClosed
+	}
+	return nil
+}
+
+func (c *UDPConn) pushBuffer(p []byte) {
+	c.mux.Lock()
+	defer c.mux.Unlock()
+	if cap(c.buffer) == 0 {
+		panic("rcv buffer size for UDP cannot be 0")
+	}
+	select {
+	case c.buffer <- p:
+	default:
+		<-c.buffer
+		c.buffer <- p
+	}
 }

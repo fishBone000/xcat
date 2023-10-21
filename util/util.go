@@ -50,17 +50,17 @@ func CloseCloser(c io.Closer) {
 		if err != nil {
 			log.Warnf("close connection %s: %w", ConnStr(c), err)
 		}
+	case *UDPConn:
+		log.Debug("close connection ", ConnStr(c))
+		err := c.Close()
+		if err != nil {
+			log.Warnf("close connection %s: %w", ConnStr(c), err)
+		}
 	case net.Listener:
 		log.Debug("close listener ", c.Addr())
 		err := c.Close()
 		if err != nil {
 			log.Warnf("close connection %s: %w", c.Addr(), err)
-		}
-  case *MultiListener:
-    log.Debug("close listener ", c.Addr())
-		err := c.Close()
-		if err != nil {
-			log.Warnf("close listener %s: \n%w", c.Addr(), err)
 		}
 	default:
 		log.Info(fmt.Sprintf("close %T", c))
@@ -71,7 +71,12 @@ func CloseCloser(c io.Closer) {
 	}
 }
 
-func ConnStr(c net.Conn) string {
+type connAddressHolder interface {
+	LocalAddr() net.Addr
+	RemoteAddr() net.Addr
+}
+
+func ConnStr(c connAddressHolder) string {
 	return fmt.Sprintf("%s<L-R>%s", c.LocalAddr(), c.RemoteAddr())
 }
 
@@ -95,28 +100,79 @@ func ParsePortFromAddr(addr net.Addr) (uint16, error) {
 }
 
 type FlagOnce struct {
-  ch chan struct{}
-  set bool
-  mux sync.Mutex
-}
-
-func NewFlagOnce() *FlagOnce {
-  return &FlagOnce{
-    ch: make(chan struct{}),
-  }
+	ch  chan struct{}
+	set bool
+	mux sync.Mutex
 }
 
 func (f *FlagOnce) Set() bool {
-  f.mux.Lock()
-  defer f.mux.Unlock()
-  if f.set {
-    return false
-  }
-  close(f.ch)
-  f.set = true
-  return true
+	f.mux.Lock()
+	defer f.mux.Unlock()
+	if f.set {
+		return false
+	}
+	if f.ch != nil {
+		close(f.ch)
+	}
+	f.set = true
+	return true
+}
+
+func (f *FlagOnce) Get() bool {
+	f.mux.Lock()
+	defer f.mux.Unlock()
+	return f.set
 }
 
 func (f *FlagOnce) Chan() <-chan struct{} {
-  return f.ch
+	f.mux.Lock()
+	defer f.mux.Unlock()
+	if f.ch == nil {
+		f.ch = make(chan struct{})
+		if f.set {
+			close(f.ch)
+		}
+	}
+	return f.ch
+}
+
+type Fatal struct {
+	inner error
+	set   bool
+	mux   sync.Mutex
+	ch    chan struct{}
+}
+
+func (f *Fatal) Set(err error) bool {
+	f.mux.Lock()
+	defer f.mux.Unlock()
+
+  if f.set {
+    return false
+  }
+  f.inner = err
+  f.set = true
+  if f.ch != nil {
+    close(f.ch)
+  }
+  return true
+}
+
+func (f *Fatal) Get() error {
+	f.mux.Lock()
+	defer f.mux.Unlock()
+
+	return f.inner
+}
+
+func (f *Fatal) Chan() <-chan struct{} {
+	f.mux.Lock()
+	defer f.mux.Unlock()
+	if f.ch == nil {
+		f.ch = make(chan struct{})
+		if f.inner != nil {
+			close(f.ch)
+		}
+	}
+	return f.ch
 }
