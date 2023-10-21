@@ -48,25 +48,25 @@ func CloseCloser(c io.Closer) {
 		log.Debugf("close %s connection %s", c.LocalAddr().Network(), ConnStr(c))
 		err := c.Close()
 		if err != nil {
-			log.Warnf("close %s connection %s: %w", c.LocalAddr().Network(), ConnStr(c), err)
+			log.Debugf("close %s connection %s: %w", c.LocalAddr().Network(), ConnStr(c), err)
 		}
 	case *UDPConn:
 		log.Debugf("close %s connection %s", c.LocalAddr().Network(), ConnStr(c))
 		err := c.Close()
 		if err != nil {
-			log.Warnf("close %s connection %s: %w", c.LocalAddr().Network(), ConnStr(c), err)
+			log.Debugf("close %s connection %s: %w", c.LocalAddr().Network(), ConnStr(c), err)
 		}
 	case net.Listener:
 		log.Debugf("close %s listener %s", c.Addr().Network(), c.Addr())
 		err := c.Close()
 		if err != nil {
-			log.Warnf("close %s listener %s: %w", c.Addr().Network(), c.Addr(), err)
+			log.Debugf("close %s listener %s: %w", c.Addr().Network(), c.Addr(), err)
 		}
 	default:
 		log.Info(fmt.Sprintf("close %T", c))
 		err := c.Close()
 		if err != nil {
-			log.Warnf("close %T: %w", c, err)
+			log.Debugf("close %T: %w", c, err)
 		}
 	}
 }

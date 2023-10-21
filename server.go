@@ -50,10 +50,14 @@ func serveControlLink(conn net.Conn) {
 	for {
 		n, err := rconn.Read(buf)
 		if err != nil {
-			log.Errf(
-				"Error reading request on control link %s, closing: %w. ",
-				util.ConnStr(rconn), err,
-			)
+      if errors.Is(err, io.EOF) {
+        log.Errf("Finished serving control link %s: EOF", util.ConnStr(rconn))
+      } else {
+        log.Errf(
+          "Error reading request on control link %s, closing: %w. ",
+          util.ConnStr(rconn), err,
+        )
+      }
 			util.CloseCloser(rconn)
 			return
 		}
@@ -80,7 +84,7 @@ func serveControlLink(conn net.Conn) {
 				return
 			}
 
-			log.Infof("Port %d allocated on control link %s, start listening. ", port, util.ConnStr(rconn))
+			log.Infof("Port %d allocated on control link %s, start serving. ", port, util.ConnStr(rconn))
 			if buf[i] == 0x00 {
 				go serveDataLinkTCP(l)
 			} else {
@@ -122,6 +126,7 @@ func serveDataLinkTCP(l *util.MultiListenerTCP) {
 		log.Errf("Ray negotiation on TCP data link %s failed: %w", l.Addr(), err)
 		return
 	}
+  log.Debugf("TCP data link established: %s. ", util.ConnStr(rconn))
 	defer util.CloseCloser(rconn)
 
 	select {
@@ -129,10 +134,11 @@ func serveDataLinkTCP(l *util.MultiListenerTCP) {
 	}
 
 	if dialErr != nil {
-		log.Errf("Error dial outbound for control link %s: %w", util.ConnStr(rconn), dialErr)
+		log.Errf("Error dial outbound for TCP data link %s.\n%w", util.ConnStr(rconn), dialErr)
 		return
 	}
 
+  log.Debugf("Relaying for TCP data link %s started. ", util.ConnStr(rconn))
 	err = util.Relay(rconn, outbound)
 	log.Infof("Relay finished, detail: \n%w", err)
 }
@@ -183,6 +189,7 @@ func serveDataLinkUDP(l *util.MultiListenerTCP) {
 		return
 	}
 	ru := ray.NewRayUDP(udpIn, tcpIn, r)
+  log.Debugf("UDP data link %s established. ", util.ConnStr(ru))
 
 	fatal := util.Fatal{}
 	go func() {
@@ -195,7 +202,7 @@ func serveDataLinkUDP(l *util.MultiListenerTCP) {
 			}
 			if err != nil {
 				errCnt++
-				if errCnt < 16 {
+				if errCnt < 4 {
 					continue
 				}
 				fatal.Set(err)
@@ -215,7 +222,7 @@ func serveDataLinkUDP(l *util.MultiListenerTCP) {
 			}
 			if err != nil {
 				errCnt++
-				if errCnt < 16 {
+				if errCnt < 4 {
 					continue
 				}
 				fatal.Set(err)

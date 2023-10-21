@@ -124,8 +124,9 @@ func DialTimeoutUDP(network, addr string, usr, pwd []byte, d time.Duration) (*Ra
 		return nil, net.UnknownNetworkError(network)
 	}
 
+  ddl := time.Now().Add(d)
 	dialer := net.Dialer{
-		Timeout:   d,
+		Deadline:   ddl,
 		KeepAlive: 10 * time.Second,
 	}
 
@@ -133,19 +134,30 @@ func DialTimeoutUDP(network, addr string, usr, pwd []byte, d time.Duration) (*Ra
 	if err != nil {
 		return nil, err
 	}
-	laddr := tcp.LocalAddr().String()
-	laddrUdp, _ := net.ResolveUDPAddr(network, laddr)
-	raddr, _ := net.ResolveUDPAddr(network, tcp.RemoteAddr().String())
-	udp, err := net.DialUDP(network, laddrUdp, raddr)
+
+  dialer.LocalAddr, _ = net.ResolveUDPAddr(network, tcp.LocalAddr().String())
+	udp, err := dialer.Dial(network, tcp.RemoteAddr().String())
 	if err != nil {
 		tcp.Close()
 		return nil, err
 	}
+
+  if err := tcp.SetDeadline(ddl); err != nil {
+    tcp.Close()
+    udp.Close()
+    return nil, err
+  }
 	ray, err := Negotiate(tcp, usr, pwd)
 	if err != nil {
 		tcp.Close()
+    udp.Close()
 		return nil, err
 	}
+  if err := tcp.SetDeadline(time.Time{}); err != nil {
+    tcp.Close()
+    udp.Close()
+    return nil, err
+  }
 
   ru := NewRayUDP(udp, tcp, ray)
 

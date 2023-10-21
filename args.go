@@ -6,6 +6,8 @@ import (
 	"net"
 	"os"
 	"strconv"
+
+	"github.com/fishBone000/xcat/log"
 )
 
 const (
@@ -26,6 +28,7 @@ var (
 	CtrlLinkTimeout       uint
 	UDPTimeout            uint
 	Version               bool
+	LogLevel              int
 )
 
 // Variables after parsing
@@ -44,6 +47,7 @@ func specifyFlags() {
 	flag.UintVar(&CtrlLinkTimeout, "T", 5, "timeout (sec) for establishing control link an dport query, effective on client side only")
 	flag.UintVar(&UDPTimeout, "u", 180, "timeout (sec) for UDP relaying, effective on client side only")
 	flag.BoolVar(&Version, "v", false, "print version number")
+  flag.IntVar(&LogLevel, "d", 1, "log level, 0: err, 1: warn, 2: info, 3: dbg")
 }
 
 func init() {
@@ -77,4 +81,6 @@ func checkFlags() {
 		fmt.Printf("Invalid listening address %s: %s. \n", LAddr, err.Error())
 		os.Exit(1)
 	}
+
+  log.Level = LogLevel
 }
