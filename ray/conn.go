@@ -77,7 +77,34 @@ type RayUDP struct {
 	UDP    net.Conn
 	TCP    net.Conn
 	Ray    *Ray
+  laddr net.Addr
+  raddr net.Addr
 	errTCP util.Fatal
+}
+
+func NewRayUDP(u net.Conn, t net.Conn, r *Ray) *RayUDP {
+  ru := &RayUDP{
+    TCP: t,
+    UDP: u,
+    Ray: r,
+    laddr: util.NewStrAddr("ray udp", t.LocalAddr().String()),
+    raddr: util.NewStrAddr("ray udp", t.RemoteAddr().String()),
+  }
+
+  go func() {
+    for {
+      buffer := make([]byte, 1)
+      _, err := ru.TCP.Read(buffer)
+      if err != nil {
+        ru.errTCP.Set(err)
+        ru.TCP.Close()
+        ru.UDP.Close()
+        return
+      }
+    }
+  }()
+
+  return ru
 }
 
 func DialUDP(network, addr string, usr, pwd []byte) (*RayUDP, error) {
@@ -120,24 +147,8 @@ func DialTimeoutUDP(network, addr string, usr, pwd []byte, d time.Duration) (*Ra
 		return nil, err
 	}
 
-  ru := &RayUDP{
-		TCP: tcp,
-		UDP: udp,
-		Ray: ray,
-	}
+  ru := NewRayUDP(udp, tcp, ray)
 
-  go func() {
-    for {
-      buffer := make([]byte, 1)
-      _, err := tcp.Read(buffer)
-      if err != nil {
-        ru.errTCP.Set(err)
-        ru.TCP.Close()
-        ru.UDP.Close()
-        return
-      }
-    }
-  }()
 	return ru, nil
 }
 
@@ -231,7 +242,7 @@ func (r *RayUDP) Write(b []byte) (n int, err error) {
 	return
 }
 
-func (r *RayUDP) LocalAddr() net.Addr {
+func (r *RayUDP) LocalAddr() net.Addr { // TODO Improper! In this way the network would be "udp"
 	return r.UDP.LocalAddr()
 }
 

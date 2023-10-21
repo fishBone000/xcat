@@ -168,7 +168,7 @@ func serveDataLinkUDP(l *util.MultiListenerTCP) {
 	raddr, _ := net.ResolveUDPAddr("udp", tcpIn.RemoteAddr().String())
 	udpIn, err := net.DialUDP("udp", laddr, raddr)
 	if err != nil {
-		log.Errf("Failed to dial UDP outbound for UDP data link %s: %w. ", util.ConnStr(tcpIn), err)
+		log.Errf("Failed to dial UDP inbound for UDP data link %s: %w. ", util.ConnStr(tcpIn), err)
 		util.CloseCloser(tcpIn)
 		util.CloseCloser(udpOut)
 		return
@@ -182,11 +182,7 @@ func serveDataLinkUDP(l *util.MultiListenerTCP) {
 		util.CloseCloser(udpIn)
 		return
 	}
-	ru := &ray.RayUDP{
-		TCP: tcpIn,
-		UDP: udpIn,
-		Ray: r,
-	}
+	ru := ray.NewRayUDP(udpIn, tcpIn, r)
 
 	fatal := util.Fatal{}
 	go func() {
