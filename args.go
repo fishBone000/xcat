@@ -57,6 +57,7 @@ func init() {
 func checkFlags() {
   if Version {
     fmt.Println(version)
+    os.Exit(0)
   }
 
 	if Mode != ModeServer && Mode != ModeClient {
