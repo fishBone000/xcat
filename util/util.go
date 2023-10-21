@@ -45,22 +45,22 @@ func (c *AddrConn) RemoteAddr() net.Addr {
 func CloseCloser(c io.Closer) {
 	switch c := c.(type) {
 	case net.Conn:
-		log.Debug("close connection ", ConnStr(c))
+		log.Debugf("close %s connection %s", c.LocalAddr().Network(), ConnStr(c))
 		err := c.Close()
 		if err != nil {
-			log.Warnf("close connection %s: %w", ConnStr(c), err)
+			log.Warnf("close %s connection %s: %w", c.LocalAddr().Network(), ConnStr(c), err)
 		}
 	case *UDPConn:
-		log.Debug("close connection ", ConnStr(c))
+		log.Debugf("close %s connection %s", c.LocalAddr().Network(), ConnStr(c))
 		err := c.Close()
 		if err != nil {
-			log.Warnf("close connection %s: %w", ConnStr(c), err)
+			log.Warnf("close %s connection %s: %w", c.LocalAddr().Network(), ConnStr(c), err)
 		}
 	case net.Listener:
-		log.Debug("close listener ", c.Addr())
+		log.Debugf("close %s listener %s", c.Addr().Network(), c.Addr())
 		err := c.Close()
 		if err != nil {
-			log.Warnf("close connection %s: %w", c.Addr(), err)
+			log.Warnf("close %s listener %s: %w", c.Addr().Network(), c.Addr(), err)
 		}
 	default:
 		log.Info(fmt.Sprintf("close %T", c))
@@ -170,7 +170,7 @@ func (f *Fatal) Chan() <-chan struct{} {
 	defer f.mux.Unlock()
 	if f.ch == nil {
 		f.ch = make(chan struct{})
-		if f.inner != nil {
+		if f.set {
 			close(f.ch)
 		}
 	}

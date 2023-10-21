@@ -132,6 +132,8 @@ func DialTimeoutUDP(network, addr string, usr, pwd []byte, d time.Duration) (*Ra
       _, err := tcp.Read(buffer)
       if err != nil {
         ru.errTCP.Set(err)
+        ru.TCP.Close()
+        ru.UDP.Close()
         return
       }
     }

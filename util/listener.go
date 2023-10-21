@@ -12,7 +12,7 @@ type MultiListenerTCP struct {
 	connChan chan net.Conn
 	ls       []*net.TCPListener
 	errs     []error
-	closed   *FlagOnce
+	closed   FlagOnce
 	mux      sync.Mutex
 	addr     net.Addr
 }
@@ -164,6 +164,7 @@ func ListenMultipleUDP(network, addr string) (*MultiListenerUDP, error) {
 		} else {
 			ips = []net.IP{net.IPv4zero}
 		}
+    host = "localhost"
 		port = "0"
 	} else {
 		var err error
@@ -266,11 +267,10 @@ func (l *MultiListenerUDP) run() {
 
 				p := make([]byte, n)
 				copy(p, buffer[:n])
-				conn.pushBuffer(buffer[:n])
+				conn.pushBuffer(p)
 
 				if err != nil {
 					l.fatal.Set(err)
-					conn.fatal.Set(err)
 					return
 				}
 			}
@@ -284,30 +284,29 @@ type UDPConn struct {
 	laddr  net.Addr
 	raddr  net.Addr
 	buffer chan []byte
-	fatal  Fatal
+  closed FlagOnce
 	mux    sync.Mutex
 }
 
 func (c *UDPConn) Write(b []byte) (int, error) {
-	if c.fatal.Get() != nil {
-		return 0, net.ErrClosed
-	}
-	n, err := c.inner.WriteTo(b, c.raddr)
-	if err != nil {
-		c.fatal.Set(err)
-	}
-	return n, err
+  if c.closed.Get() {
+    return 0, net.ErrClosed
+  }
+	return c.inner.WriteTo(b, c.raddr)
 }
 
 func (c *UDPConn) Read() ([]byte, error) {
-	if c.fatal.Get() != nil {
-		return nil, net.ErrClosed
+  if c.closed.Get() {
+    return nil, net.ErrClosed
+  }
+	if c.l.fatal.Get() != nil {
+		return nil, c.l.fatal.Get()
 	}
 	select {
 	case b := <-c.buffer:
 		return b, nil
-	case <-c.fatal.Chan():
-		return nil, net.ErrClosed
+	case <-c.l.fatal.Chan():
+		return nil, c.l.fatal.Get()
 	}
 }
 
@@ -320,11 +319,13 @@ func (c *UDPConn) RemoteAddr() net.Addr {
 }
 
 func (c *UDPConn) Close() error {
-	ok := c.fatal.Set(net.ErrClosed)
+	ok := c.closed.Set()
 	c.l.mux.Lock()
 	defer c.l.mux.Unlock()
-	if c.l.connsTableByLAddr[c.LocalAddr().String()][c.RemoteAddr().String()] == c {
-		delete(c.l.connsTableByLAddr[c.LocalAddr().String()], c.RemoteAddr().String())
+  laddr := c.LocalAddr().String()
+  raddr := c.RemoteAddr().String()
+	if c.l.connsTableByLAddr[laddr][raddr] == c {
+		delete(c.l.connsTableByLAddr[laddr], raddr)
 	}
 	if !ok {
 		return net.ErrClosed
