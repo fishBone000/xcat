@@ -50,14 +50,14 @@ func serveControlLink(conn net.Conn) {
 	for {
 		n, err := rconn.Read(buf)
 		if err != nil {
-      if errors.Is(err, io.EOF) {
-        log.Errf("Finished serving control link %s: EOF", util.ConnStr(rconn))
-      } else {
-        log.Errf(
-          "Error reading request on control link %s, closing: %w. ",
-          util.ConnStr(rconn), err,
-        )
-      }
+			if errors.Is(err, io.EOF) {
+				log.Errf("Finished serving control link %s: EOF", util.ConnStr(rconn))
+			} else {
+				log.Errf(
+					"Error reading request on control link %s, closing: %w. ",
+					util.ConnStr(rconn), err,
+				)
+			}
 			util.CloseCloser(rconn)
 			return
 		}
@@ -126,7 +126,7 @@ func serveDataLinkTCP(l *util.MultiListenerTCP) {
 		log.Errf("Ray negotiation on TCP data link %s failed: %w", l.Addr(), err)
 		return
 	}
-  log.Debugf("TCP data link established: %s. ", util.ConnStr(rconn))
+	log.Debugf("TCP data link established: %s. ", util.ConnStr(rconn))
 	defer util.CloseCloser(rconn)
 
 	select {
@@ -138,7 +138,7 @@ func serveDataLinkTCP(l *util.MultiListenerTCP) {
 		return
 	}
 
-  log.Debugf("Relaying for TCP data link %s started. ", util.ConnStr(rconn))
+	log.Debugf("Relaying for TCP data link %s started. ", util.ConnStr(rconn))
 	err = util.Relay(rconn, outbound)
 	log.Infof("Relay finished, detail: \n%w", err)
 }
@@ -171,8 +171,7 @@ func serveDataLinkUDP(l *util.MultiListenerTCP) {
 	}
 
 	laddr, _ := net.ResolveUDPAddr("udp", tcpIn.LocalAddr().String())
-	raddr, _ := net.ResolveUDPAddr("udp", tcpIn.RemoteAddr().String())
-	udpIn, err := net.DialUDP("udp", laddr, raddr)
+	udpIn, err := net.ListenUDP("udp", laddr)
 	if err != nil {
 		log.Errf("Failed to dial UDP inbound for UDP data link %s: %w. ", util.ConnStr(tcpIn), err)
 		util.CloseCloser(tcpIn)
@@ -188,47 +187,43 @@ func serveDataLinkUDP(l *util.MultiListenerTCP) {
 		util.CloseCloser(udpIn)
 		return
 	}
-	ru := ray.NewRayUDP(udpIn, tcpIn, r)
-  log.Debugf("UDP data link %s established. ", util.ConnStr(ru))
+	ru := ray.NewRayUDP(udpIn, false, tcpIn, r)
+	log.Debugf("UDP data link %s established. ", util.ConnStr(ru))
 
 	fatal := util.Fatal{}
 	go func() {
 		buffer := make([]byte, 65535)
-		errCnt := 0
+    wRetry := util.Retry{Max: udpIoRetries}
+    rRetry := util.Retry{Max: udpIoRetries}
 		for {
 			n, err := ru.Read(buffer)
 			if n > 0 {
-				udpOut.Write(buffer[:n])
-			}
-			if err != nil {
-				errCnt++
-				if errCnt < 4 {
-					continue
+				if _, werr := udpOut.Write(buffer[:n]); wRetry.Test(werr) {
+					fatal.Set(werr)
+					return
 				}
+			}
+			if rRetry.Test(err) {
 				fatal.Set(err)
 				return
-			} else {
-				errCnt = 0
 			}
 		}
 	}()
 	go func() {
 		buffer := make([]byte, 65535)
-		errCnt := 0
+    wRetry := util.Retry{Max: udpIoRetries}
+    rRetry := util.Retry{Max: udpIoRetries}
 		for {
 			n, err := udpOut.Read(buffer)
 			if n > 0 {
-				ru.Write(buffer[:n])
-			}
-			if err != nil {
-				errCnt++
-				if errCnt < 4 {
-					continue
+				if _, werr := ru.Write(buffer[:n]); wRetry.Test(werr) {
+					fatal.Set(werr)
+          return
 				}
+			}
+			if rRetry.Test(err) {
 				fatal.Set(err)
 				return
-			} else {
-				errCnt = 0
 			}
 		}
 	}()

@@ -176,3 +176,34 @@ func (f *Fatal) Chan() <-chan struct{} {
 	}
 	return f.ch
 }
+
+type Retry struct {
+  cnt uint
+  Max uint
+  err error
+  mux sync.Mutex
+}
+
+func (r *Retry) Test(err error) bool {
+  r.mux.Lock()
+  defer r.mux.Unlock()
+  if err == nil {
+    r.cnt = 0
+    return false
+  }
+  if r.err != nil {
+    return true
+  }
+  r.cnt++
+  if r.cnt > r.Max {
+    r.err = err
+    return true
+  }
+  return false
+}
+
+func (r *Retry) Err() error {
+  r.mux.Lock()
+  defer r.mux.Unlock()
+  return r.err
+}
