@@ -25,6 +25,7 @@ var (
 	DataLinkListenTimeout uint // TODO int might be better for these timeouts? What if they overflow?
 	CtrlLinkTimeout       uint
 	UDPTimeout            uint
+	Version               bool
 )
 
 // Variables after parsing
@@ -41,7 +42,8 @@ func specifyFlags() {
 	flag.StringVar(&LAddr, "l", ":1080", "listening address")
 	flag.UintVar(&DataLinkListenTimeout, "t", 15, "timeout (sec) for listening incoming data link, effective on server side only")
 	flag.UintVar(&CtrlLinkTimeout, "T", 5, "timeout (sec) for establishing control link an dport query, effective on client side only")
-  flag.UintVar(&UDPTimeout, "u", 60, "timeout (sec) for UDP relaying, effective on client side only")
+	flag.UintVar(&UDPTimeout, "u", 60, "timeout (sec) for UDP relaying, effective on client side only")
+  flag.BoolVar(&Version, "v", false, "print version number")
 }
 
 func init() {
@@ -53,6 +55,10 @@ func init() {
 }
 
 func checkFlags() {
+  if Version {
+    fmt.Println(version)
+  }
+
 	if Mode != ModeServer && Mode != ModeClient {
 		fmt.Printf("Unknown mode %s", Mode)
 		os.Exit(1)
