@@ -187,6 +187,7 @@ func serveDataLinkUDP(l *util.MultiListenerTCP) {
 		util.CloseCloser(udpIn)
 		return
 	}
+
 	ru := ray.NewRayUDP(udpIn, false, tcpIn, r)
 	log.Debugf("UDP data link %s established. ", util.ConnStr(ru))
 

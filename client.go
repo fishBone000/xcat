@@ -104,9 +104,8 @@ func serveInboundUDP(inbound *util.UDPConn, ctrl *ctrl.ControlLink) {
 	}
 	defer util.CloseCloser(ru)
 
-  time.Sleep(time.Second)
 	fatal := util.Fatal{}
-	activity := make(chan struct{})
+	activity := make(chan struct{}, 4)
 	go func() {
 		for {
 			p, err := inbound.Read()

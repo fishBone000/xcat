@@ -87,11 +87,11 @@ type RayUDP struct {
 
 func NewRayUDP(u *net.UDPConn, preconnected bool, t net.Conn, r *Ray) *RayUDP {
 	ru := &RayUDP{
-		tcp:   t,
-		udp:   u,
-		ray:   r,
-    preconnected: preconnected,
-		laddr: util.NewStrAddr("ray udp", t.LocalAddr().String()),
+		tcp:          t,
+		udp:          u,
+		ray:          r,
+		preconnected: preconnected,
+		laddr:        util.NewStrAddr("ray udp", t.LocalAddr().String()),
 	}
 	if raddr := u.RemoteAddr(); raddr != nil {
 		ru.raddr = raddr
@@ -109,7 +109,6 @@ func NewRayUDP(u *net.UDPConn, preconnected bool, t net.Conn, r *Ray) *RayUDP {
 			}
 		}
 	}()
-
 	return ru
 }
 
@@ -242,7 +241,10 @@ func (r *RayUDP) Read(b []byte) (n int, err error) {
 	for {
 		n, addr, err = r.udp.ReadFrom(b)
 		if addr == nil {
-			continue
+			if n == 0 && err != nil {
+				return
+			}
+			panic("IMPOSSIBLE! net.UDPConn.ReadFrom returned unexpected values. ")
 		}
 		r.mux.Lock()
 		if r.raddr == nil {
@@ -273,9 +275,9 @@ func (r *RayUDP) Write(b []byte) (n int, err error) {
 	if err != nil {
 		return
 	}
-  if r.preconnected {
-    return r.udp.Write(p)
-  }
+	if r.preconnected {
+		return r.udp.Write(p)
+	}
 	r.mux.Lock()
 	defer r.mux.Unlock()
 	return r.udp.WriteTo(p, r.raddr)
