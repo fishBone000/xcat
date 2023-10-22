@@ -1,4 +1,9 @@
 VERSION = $(shell git describe --tags)
-build:
+
+dev:
+	go build -v -ldflags="-X main.version=$(VERSION)-dev" -o build/xcat_"$(VERSION)-dev"
+	cp build/xcat_"$(VERSION)-dev" build/xcat
+
+release:
 	go build -v -ldflags="-X main.version=$(VERSION)" -o build/xcat_"$(VERSION)"
 	cp build/xcat_"$(VERSION)" build/xcat
