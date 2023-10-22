@@ -51,7 +51,7 @@ func serveControlLink(conn net.Conn) {
 		n, err := rconn.Read(buf)
 		if err != nil {
 			if errors.Is(err, io.EOF) {
-				log.Errf("Finished serving control link %s: EOF", util.ConnStr(rconn))
+				log.Infof("Finished serving control link %s: EOF", util.ConnStr(rconn))
 			} else {
 				log.Errf(
 					"Error reading request on control link %s, closing: %w. ",
@@ -187,6 +187,7 @@ func serveDataLinkUDP(l *util.MultiListenerTCP) {
 		util.CloseCloser(udpIn)
 		return
 	}
+
 	ru := ray.NewRayUDP(udpIn, false, tcpIn, r)
 	log.Debugf("UDP data link %s established. ", util.ConnStr(ru))
 
