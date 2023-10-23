@@ -139,8 +139,11 @@ func serveDataLinkTCP(l *util.MultiListenerTCP) {
 	}
 
 	log.Debugf("Relaying for TCP data link %s started. ", util.ConnStr(rconn))
-	err = util.Relay(rconn, outbound)
-	log.Infof("Relay finished, detail: \n%w", err)
+  if err := util.Relay(rconn, outbound); err != nil {
+    log.Warnf("Error relaying TCP for inbound %s: \n%w", util.ConnStr(rconn), err)
+  } else {
+    log.Infof("Relay TCP finished for inbound %s. ", util.ConnStr(rconn))
+  }
 }
 
 func serveDataLinkUDP(l *util.MultiListenerTCP) {

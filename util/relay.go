@@ -1,10 +1,13 @@
 package util
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"net"
 	"sync"
+
+	"github.com/fishBone000/xcat/log"
 )
 
 type RelayError struct {
@@ -17,6 +20,9 @@ type RelayError struct {
 }
 
 func NewRelayErr(clientConn, hostConn net.Conn, chErr, hcErr error) *RelayError {
+  if errors.Is(chErr, io.EOF) && errors.Is(hcErr, io.EOF) {
+    return nil
+  }
 	return &RelayError{
 		ClientRemoteAddr: clientConn.RemoteAddr(),
 		ClientLocalAddr:  clientConn.LocalAddr(),
@@ -29,7 +35,7 @@ func NewRelayErr(clientConn, hostConn net.Conn, chErr, hcErr error) *RelayError 
 
 func (e *RelayError) Error() string {
 	return fmt.Sprintf(
-    "%s: \nClient to host: %s\nHost to client: %s",
+		"%s: \nClient to host: %s\nHost to client: %s",
 		RelayAddr2str(e.ClientRemoteAddr, e.ClientLocalAddr, e.HostLocalAddr, e.HostRemoteAddr),
 		e.Client2HostErr, e.Host2ClientErr,
 	)
@@ -59,14 +65,19 @@ func Relay(clientConn, hostConn net.Conn) error {
 	wg := sync.WaitGroup{}
 	wg.Add(2)
 
-	go func() {
-		_, hcErr = io.Copy(clientConn, hostConn)
+	doCopy := func(dst, src net.Conn) {
+		_, hcErr = io.Copy(dst, src)
+		if c, ok := dst.(interface{ CloseWrite() error }); ok {
+			if err := c.CloseWrite(); err != nil && err != net.ErrClosed {
+				log.Warnf("Error closing write end of %s: %w. ", ConnStr(dst), err)
+			} else {
+        log.Infof("Close write end %s. ", ConnStr(dst))
+      }
+		}
 		wg.Done()
-	}()
-	go func() {
-		_, chErr = io.Copy(hostConn, clientConn)
-		wg.Done()
-	}()
+	}
+	go doCopy(clientConn, hostConn)
+	go doCopy(hostConn, clientConn)
 	wg.Wait()
 
 	if chErr == nil {

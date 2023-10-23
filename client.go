@@ -83,8 +83,11 @@ func serveInboundTCP(inbound net.Conn, ctrl *ctrl.ControlLink) {
 	}
 	log.Infof("Established TCP data link %s for inbound %s, relay starting. ", util.ConnStr(rconn), util.ConnStr(inbound))
 
-	err = util.Relay(inbound, rconn)
-	log.Info(fmt.Errorf("Relay TCP finished for inbound %s, result: \n%w", util.ConnStr(inbound), err))
+  if err := util.Relay(inbound, rconn); err != nil {
+    log.Warnf("Error relaying TCP for inbound %s: \n%w", util.ConnStr(inbound), err)
+  } else {
+    log.Infof("Relay TCP finished for inbound %s. ", util.ConnStr(inbound))
+  }
 }
 
 func serveInboundUDP(inbound *util.UDPConn, ctrl *ctrl.ControlLink) {
