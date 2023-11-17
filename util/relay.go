@@ -5,9 +5,6 @@ import (
 	"fmt"
 	"io"
 	"net"
-	"sync"
-
-	"github.com/fishBone000/xcat/log"
 )
 
 type RelayError struct {

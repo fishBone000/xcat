@@ -139,11 +139,11 @@ func serveDataLinkTCP(l *util.MultiListenerTCP) {
 	}
 
 	log.Debugf("Relaying for TCP data link %s started. ", util.ConnStr(rconn))
-  if err := util.Relay(rconn, outbound); err != nil {
-    log.Warnf("Error relaying TCP for inbound %s: \n%w", util.ConnStr(rconn), err)
-  } else {
-    log.Infof("Relay TCP finished for inbound %s. ", util.ConnStr(rconn))
-  }
+	if err := util.Relay(rconn, outbound); err != nil {
+		log.Warnf("Error relaying TCP for inbound %s: \n%w", util.ConnStr(rconn), err)
+	} else {
+		log.Infof("Relay TCP finished for inbound %s. ", util.ConnStr(rconn))
+	}
 }
 
 func serveDataLinkUDP(l *util.MultiListenerTCP) {
@@ -197,8 +197,8 @@ func serveDataLinkUDP(l *util.MultiListenerTCP) {
 	fatal := util.Fatal{}
 	go func() {
 		buffer := make([]byte, 65535)
-    wRetry := util.Retry{Max: udpIoRetries}
-    rRetry := util.Retry{Max: udpIoRetries}
+		wRetry := util.Retry{Max: udpIoRetries}
+		rRetry := util.Retry{Max: udpIoRetries}
 		for {
 			n, err := ru.Read(buffer)
 			if n > 0 {
@@ -215,14 +215,14 @@ func serveDataLinkUDP(l *util.MultiListenerTCP) {
 	}()
 	go func() {
 		buffer := make([]byte, 65535)
-    wRetry := util.Retry{Max: udpIoRetries}
-    rRetry := util.Retry{Max: udpIoRetries}
+		wRetry := util.Retry{Max: udpIoRetries}
+		rRetry := util.Retry{Max: udpIoRetries}
 		for {
 			n, err := udpOut.Read(buffer)
 			if n > 0 {
 				if _, werr := ru.Write(buffer[:n]); wRetry.Test(werr) {
 					fatal.Set(werr)
-          return
+					return
 				}
 			}
 			if rRetry.Test(err) {
