@@ -19,7 +19,7 @@ type RelayError struct {
 	Host2ClientErr   error
 }
 
-func NewRelayErr(clientConn, hostConn net.Conn, chErr, hcErr error) *RelayError {
+func NewRelayErr(clientConn, hostConn net.Conn, chErr, hcErr error) error {
   if errors.Is(chErr, io.EOF) && errors.Is(hcErr, io.EOF) {
     return nil
   }
@@ -60,36 +60,19 @@ func Relay2str(cConn net.Conn, hConn net.Conn) string {
 
 func Relay(clientConn, hostConn net.Conn) error {
 	// Copied & pasted from midlayer.go
-	var chErr error
-	var hcErr error
-	wg := sync.WaitGroup{}
-	wg.Add(2)
+  errCh := make(chan error, 1)
 
 	doCopy := func(dst, src net.Conn) {
-		_, hcErr = io.Copy(dst, src)
-		if c, ok := dst.(interface{ CloseWrite() error }); ok {
-			if err := c.CloseWrite(); err != nil && err != net.ErrClosed {
-				log.Warnf("Error closing write end of %s: %w. ", ConnStr(dst), err)
-			} else {
-        log.Infof("Close write end %s. ", ConnStr(dst))
-      }
-		}
-		wg.Done()
+    _, err := io.Copy(dst, src)
+    errCh <- err
 	}
 	go doCopy(clientConn, hostConn)
 	go doCopy(hostConn, clientConn)
-	wg.Wait()
 
-	if chErr == nil {
-		chErr = io.EOF
-	}
-	if hcErr == nil {
-		hcErr = io.EOF
-	}
+  err := <- errCh
 
 	CloseCloser(clientConn)
 	CloseCloser(hostConn)
 
-	err := NewRelayErr(clientConn, hostConn, chErr, hcErr)
 	return err
 }
