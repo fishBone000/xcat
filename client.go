@@ -22,7 +22,7 @@ func runClient() {
 		time.Second*time.Duration(CtrlLinkTimeout),
 	)
 	if err != nil {
-		log.Err("Establish control link failed! Exitting. ")
+    log.Err("Establish control link failed, exitting: %w", err)
 		os.Exit(1)
 	}
 
