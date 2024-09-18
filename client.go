@@ -17,14 +17,10 @@ func runClient() {
 	log.Info("Client start up!")
 	log.Infof("Version: %s", version)
 
-	ctrl, err := ctrl.NewCtrlLink(
+	ctrl := ctrl.NewCtrlLink(
 		net.JoinHostPort(Host, strconv.Itoa(Port)), []byte(Usr), []byte(Pwd),
 		time.Second*time.Duration(CtrlLinkTimeout),
 	)
-	if err != nil {
-    log.Err("Establish control link failed, exitting: %w", err)
-		os.Exit(1)
-	}
 
 	lt, err := util.ListenMultipleTCP("tcp", LAddr)
 	if err != nil {
@@ -66,10 +62,10 @@ func runClient() {
 }
 
 func serveInboundTCP(inbound net.Conn, ctrl *ctrl.ControlLink) {
-	log.Infof("New TCP inbound %s. ", inbound.RemoteAddr().String())
+	log.Debugf("New TCP inbound %s. ", inbound.RemoteAddr().String())
 	port, err := ctrl.GetPortTCP()
 	if err != nil {
-		log.Errf("Failed to get available port, closing inbound %s. ", inbound.RemoteAddr())
+		log.Debugf("Failed to get available port, closing inbound %s. ", inbound.RemoteAddr())
 		util.CloseCloser(inbound)
 		return
 	}
@@ -81,18 +77,18 @@ func serveInboundTCP(inbound net.Conn, ctrl *ctrl.ControlLink) {
 		util.CloseCloser(inbound)
 		return
 	}
-	log.Infof("Established TCP data link %s for inbound %s, relay starting. ", util.ConnStr(rconn), util.ConnStr(inbound))
+	log.Debugf("Established TCP data link %s for inbound %s, relay starting. ", util.ConnStr(rconn), util.ConnStr(inbound))
 
 	if err := util.Relay(inbound, rconn); err != nil {
 		log.Warnf("Error relaying TCP for inbound %s: \n%w", util.ConnStr(inbound), err)
 	} else {
-		log.Infof("Relay TCP finished for inbound %s. ", util.ConnStr(inbound))
+		log.Debugf("Relay TCP finished for inbound %s. ", util.ConnStr(inbound))
 	}
 }
 
 func serveInboundUDP(inbound *util.UDPConn, ctrl *ctrl.ControlLink) {
 	defer util.CloseCloser(inbound)
-	log.Infof("New UDP inbound %s. ", inbound.RemoteAddr().String())
+	log.Debugf("New UDP inbound %s. ", inbound.RemoteAddr().String())
 	port, err := ctrl.GetPortUDP()
 	if err != nil {
 		log.Errf("Failed to get available port, closing inbound %s. ", inbound.RemoteAddr())
@@ -174,5 +170,5 @@ func serveInboundUDP(inbound *util.UDPConn, ctrl *ctrl.ControlLink) {
 		log.Errf("Error relaying UDP for %s. Reason:\n%w", inbound.RemoteAddr(), fatal.Get())
 		return
 	}
-	log.Infof("Relay UDP for %s finished (no activity for %d secs). ", inbound.RemoteAddr(), UDPTimeout)
+	log.Debugf("Relay UDP for %s finished (no activity for %d secs). ", inbound.RemoteAddr(), UDPTimeout)
 }

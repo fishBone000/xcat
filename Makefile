@@ -5,3 +5,9 @@ dev:
 
 release:
 	go build -v -ldflags="-X main.version=$(VERSION)" -o build/xcat
+
+win_dev:
+	GOOS=windows GOARCH=amd64 go build -v -ldflags="-X main.version=$(VERSION)-dev" -o build/xcat.exe
+
+win_release:
+	GOOS=windows GOARCH=amd64 go build -v -ldflags="-X main.version=$(VERSION)" -o build/xcat.exe

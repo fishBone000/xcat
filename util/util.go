@@ -61,7 +61,7 @@ func CloseCloser(c io.Closer) {
 			log.Debugf("close %s listener %s: %w", c.Addr().Network(), c.Addr(), err)
 		}
 	default:
-		log.Info(fmt.Sprintf("close %T", c))
+		log.Debugf("close %T", c)
 		if err != nil && !errors.Is(err, net.ErrClosed) {
 			log.Debugf("close %T: %w", c, err)
 		}

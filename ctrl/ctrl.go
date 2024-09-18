@@ -22,24 +22,22 @@ type ControlLink struct {
 	usr  []byte
 	pwd  []byte
   timeout time.Duration
+  connectFailCnt int
 
 	rconn *ray.RayConn
 	mux   sync.Mutex
 }
 
-func NewCtrlLink(addr string, usr, pwd []byte, timeout time.Duration) (*ControlLink, error) {
+func NewCtrlLink(addr string, usr, pwd []byte, timeout time.Duration) *ControlLink {
 	ctrl := &ControlLink{
 		addr: addr,
 		usr:  usr,
 		pwd:  pwd,
     timeout: timeout,
+    connectFailCnt: 0,
 	}
 
-	err := ctrl.connect()
-	if err != nil {
-		return nil, err
-	}
-	return ctrl, nil
+	return ctrl
 }
 
 func (c *ControlLink) GetPortTCP() (port uint16, err error) {
@@ -66,7 +64,9 @@ func (c *ControlLink) getPort(msg byte) (port uint16, err error) {
 
 		err = c.connectNoLock()
 		if err != nil {
-			log.Err("ctrl link: Aborted due to connection failure. ")
+      if retry != 0 {
+        log.Errf("ctrl link: Stopped trying querying port after %d retries. ", retry)
+      }
 			return
 		}
 
@@ -114,7 +114,7 @@ func (c *ControlLink) connectNoLock() (err error) {
 	}
 
 	for retry := 0; retry <= ConnectRetries; retry++ {
-		if retry != 0 {
+		if retry != 0 && c.connectFailCnt == 0 {
 			log.Err(fmt.Errorf(
 				"ctrl link: connect failed, retrying %d/%d: %w. ",
 				retry, ConnectRetries, err,
@@ -130,12 +130,18 @@ func (c *ControlLink) connectNoLock() (err error) {
 
 	if err != nil {
 		c.rconn = nil
-		log.Err(fmt.Errorf(
-			"ctrl link: Failed to connect after %d retries: %w", 
-      ConnectRetries, err,
-		))
+    if c.connectFailCnt == 0 {
+      log.Errf(
+        "ctrl link: Failed to connect after %d retries: %w", 
+        ConnectRetries, err,
+      )
+      log.Err("Control link to server lost. ")
+    }
+    c.connectFailCnt += 1
 		return err
 	}
+
+  c.connectFailCnt = 0
 	log.Info("ctrl link " + c.addr + ": Connect successful: " + util.ConnStr(c.rconn) + ". ")
 	return nil
 }

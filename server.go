@@ -51,7 +51,7 @@ func serveControlLink(conn net.Conn) {
 		n, err := rconn.Read(buf)
 		if err != nil {
 			if errors.Is(err, io.EOF) {
-				log.Infof("Finished serving control link %s: EOF", util.ConnStr(rconn))
+				log.Debugf("Finished serving control link %s: EOF", util.ConnStr(rconn))
 			} else {
 				log.Errf(
 					"Error reading request on control link %s, closing: %w. ",
@@ -84,7 +84,7 @@ func serveControlLink(conn net.Conn) {
 				return
 			}
 
-			log.Infof("Port %d allocated on control link %s, start serving. ", port, util.ConnStr(rconn))
+			log.Debugf("Port %d allocated on control link %s, start serving. ", port, util.ConnStr(rconn))
 			if buf[i] == 0x00 {
 				go serveDataLinkTCP(l)
 			} else {
@@ -142,7 +142,7 @@ func serveDataLinkTCP(l *util.MultiListenerTCP) {
 	if err := util.Relay(rconn, outbound); err != nil {
 		log.Warnf("Error relaying TCP for inbound %s: \n%w", util.ConnStr(rconn), err)
 	} else {
-		log.Infof("Relay TCP finished for inbound %s. ", util.ConnStr(rconn))
+		log.Debugf("Relay TCP finished for inbound %s. ", util.ConnStr(rconn))
 	}
 }
 
@@ -235,7 +235,7 @@ func serveDataLinkUDP(l *util.MultiListenerTCP) {
 	<-fatal.Chan()
 	if err := ru.ErrTCP(); err != nil {
 		if errors.Is(err, io.EOF) {
-			log.Infof("Relay UDP for inbound %s finished: EOF", util.ConnStr(ru))
+			log.Debugf("Relay UDP for inbound %s finished: EOF", util.ConnStr(ru))
 		} else {
 			log.Errf("Error relaying UDP for inbound %s: %w", util.ConnStr(ru), err)
 		}
