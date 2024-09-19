@@ -204,3 +204,29 @@ func (r *Retry) Err() error {
   defer r.mux.Unlock()
   return r.err
 }
+
+type Counter struct {
+	mux sync.RWMutex
+	cnt int
+}
+
+func (c *Counter) Add(delta int) int {
+	c.mux.Lock()
+	defer c.mux.Unlock()
+	c.cnt += delta
+	return c.cnt
+}
+
+func (c *Counter) Get() int {
+	c.mux.RLock()
+	defer c.mux.RUnlock()
+	return c.cnt
+}
+
+func (c *Counter) Clear() int {
+	c.mux.Lock()
+	defer c.mux.Unlock()
+	ret := c.cnt
+	c.cnt = 0
+	return ret
+}

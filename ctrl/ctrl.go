@@ -9,6 +9,7 @@ import (
 
 	"github.com/fishBone000/xcat/log"
 	"github.com/fishBone000/xcat/ray"
+	"github.com/fishBone000/xcat/stat"
 	"github.com/fishBone000/xcat/util"
 )
 
@@ -17,12 +18,18 @@ const (
 	GetPortRetries = 5
 )
 
+// r: connect retry
+// c: connected
+// B: broken
 type ControlLink struct {
-	addr string
-	usr  []byte
-	pwd  []byte
-  timeout time.Duration
-  connectFailCnt int
+	addr           string
+	usr            []byte
+	pwd            []byte
+	timeout        time.Duration
+	connectFailCnt int
+	Sf             *stat.StatFile
+	cntr           stat.Counter
+	id             int
 
 	rconn *ray.RayConn
 	mux   sync.Mutex
@@ -30,22 +37,22 @@ type ControlLink struct {
 
 func NewCtrlLink(addr string, usr, pwd []byte, timeout time.Duration) *ControlLink {
 	ctrl := &ControlLink{
-		addr: addr,
-		usr:  usr,
-		pwd:  pwd,
-    timeout: timeout,
-    connectFailCnt: 0,
+		addr:           addr,
+		usr:            usr,
+		pwd:            pwd,
+		timeout:        timeout,
+		connectFailCnt: 0,
 	}
 
 	return ctrl
 }
 
 func (c *ControlLink) GetPortTCP() (port uint16, err error) {
-  return c.getPort(0x00)
+	return c.getPort(0x00)
 }
 
 func (c *ControlLink) GetPortUDP() (port uint16, err error) {
-  return c.getPort(0x01)
+	return c.getPort(0x01)
 }
 
 func (c *ControlLink) getPort(msg byte) (port uint16, err error) {
@@ -64,20 +71,20 @@ func (c *ControlLink) getPort(msg byte) (port uint16, err error) {
 
 		err = c.connectNoLock()
 		if err != nil {
-      if retry != 0 {
-        log.Errf("ctrl link: Stopped trying querying port after %d retries. ", retry)
-      }
+			if retry != 0 {
+				log.Errf("ctrl link: Stopped trying querying port after %d retries. ", retry)
+			}
 			return
 		}
 
-    err = c.rconn.SetDeadline(time.Now().Add(c.timeout))
-    if err != nil {
-      log.Warnf("ctrl link: Failed to set deadline: %w. ", err)
-    }
+		err = c.rconn.SetDeadline(time.Now().Add(c.timeout))
+		if err != nil {
+			log.Warnf("ctrl link: Failed to set deadline: %w. ", err)
+		}
 
 		_, err = c.rconn.Write([]byte{msg})
 		if err != nil {
-			c.rconn = nil
+			c.setBroken()
 			log.Err(fmt.Errorf("ctrl link: Couldn't send port query: %w. ", err))
 			continue
 		}
@@ -85,7 +92,7 @@ func (c *ControlLink) getPort(msg byte) (port uint16, err error) {
 		buf := make([]byte, 2)
 		_, err = io.ReadFull(c.rconn, buf)
 		if err != nil {
-			c.rconn = nil
+			c.setBroken()
 			log.Err(fmt.Errorf("ctrl link: Couldn't get port: %w. ", err))
 			continue
 		}
@@ -121,27 +128,35 @@ func (c *ControlLink) connectNoLock() (err error) {
 			))
 		}
 
+		c.Sf.Write("c", c.id, "r")
 		c.rconn, err = ray.DialTimeout("tcp", c.addr, c.usr, c.pwd, c.timeout)
 		if err != nil {
 			continue
 		}
-    break
+		break
 	}
 
 	if err != nil {
-		c.rconn = nil
-    if c.connectFailCnt == 0 {
-      log.Errf(
-        "ctrl link: Failed to connect after %d retries: %w", 
-        ConnectRetries, err,
-      )
-      log.Err("Control link to server lost. ")
-    }
-    c.connectFailCnt += 1
+		c.setBroken()
+		if c.connectFailCnt == 0 {
+			log.Errf(
+				"ctrl link: Failed to connect after %d retries: %w",
+				ConnectRetries, err,
+			)
+			log.Err("Control link to server lost. ")
+		}
+		c.connectFailCnt += 1
 		return err
 	}
 
-  c.connectFailCnt = 0
+	c.connectFailCnt = 0
+	c.Sf.Write("c", c.id, "c")
 	log.Info("ctrl link " + c.addr + ": Connect successful: " + util.ConnStr(c.rconn) + ". ")
 	return nil
+}
+
+func (c *ControlLink) setBroken() {
+	c.rconn = nil
+	c.Sf.Write("c", c.id, "B")
+	c.id = c.cntr.Tick()
 }
